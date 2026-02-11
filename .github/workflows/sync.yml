@@ -49,8 +49,8 @@ jobs:
           AIRTABLE_PAT: ${{ secrets.AIRTABLE_PAT }}
           AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
           AIRTABLE_TABLE_ID: ${{ secrets.AIRTABLE_TABLE_ID }}
-          GOOGLE_SHEET_ID: ${{ vars.GOOGLE_SHEET_ID }}
-          GOOGLE_SHEET_TAB: ${{ vars.GOOGLE_SHEET_TAB }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_TAB: ${{ secrets.GOOGLE_SHEET_TAB }}
           ROW_LIMIT: ${{ github.event.inputs.row_limit || '0' }}
       
       - name: Generate sync summary
