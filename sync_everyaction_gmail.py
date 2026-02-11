@@ -2,8 +2,8 @@
 """
 EveryAction Gmail → BigQuery Sync
 ===================================
-Downloads CSV report attachments from Gmail (sent by EveryAction)
-and loads them into BigQuery with append mode and duplicate tracking.
+Finds EveryAction report emails in Gmail, extracts the "Download Report"
+link from the email body, downloads the CSV, and loads it into BigQuery.
 
 Authentication:
     - Gmail: OAuth 2.0 refresh token (user consent, no admin required)
@@ -25,7 +25,9 @@ import os
 import re
 import sys
 from datetime import datetime, timezone
+from html.parser import HTMLParser
 
+import requests
 from dotenv import load_dotenv
 from google.auth.transport.requests import Request
 from google.cloud import bigquery
@@ -189,8 +191,7 @@ def search_emails(service, subject_pattern: str) -> list[dict]:
     query = (
         f"from:{SENDER_EMAIL} "
         f"subject:({subject_pattern}) "
-        f"-label:{PROCESSED_LABEL} "
-        "has:attachment"
+        f"-label:{PROCESSED_LABEL}"
     )
     log.info("Gmail query: %s", query)
 
@@ -212,39 +213,134 @@ def search_emails(service, subject_pattern: str) -> list[dict]:
     return messages
 
 
-def get_csv_attachment(service, msg_id: str, filename_re: str) -> tuple[str, bytes] | None:
-    """Download the first CSV attachment whose name matches *filename_re*.
+class _LinkExtractor(HTMLParser):
+    """Extract all <a href=...> links from HTML."""
 
-    Returns (filename, raw_bytes) or None.
-    """
+    def __init__(self):
+        super().__init__()
+        self.links: list[tuple[str, str]] = []  # (href, link_text)
+        self._current_href: str | None = None
+        self._current_text = ""
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "a":
+            href = dict(attrs).get("href", "")
+            self._current_href = href
+            self._current_text = ""
+
+    def handle_data(self, data):
+        if self._current_href is not None:
+            self._current_text += data
+
+    def handle_endtag(self, tag):
+        if tag == "a" and self._current_href is not None:
+            self.links.append((self._current_href, self._current_text.strip()))
+            self._current_href = None
+            self._current_text = ""
+
+
+def _get_email_body_html(service, msg_id: str) -> str:
+    """Return the HTML body of a Gmail message."""
     msg = (
         service.users()
         .messages()
         .get(userId="me", id=msg_id, format="full")
         .execute()
     )
-    parts = msg.get("payload", {}).get("parts", [])
-    pattern = re.compile(filename_re, re.IGNORECASE)
 
-    for part in parts:
-        fname = part.get("filename", "")
-        if not fname or not pattern.match(fname):
-            continue
-        att_id = part["body"].get("attachmentId")
-        if not att_id:
-            continue
-        att = (
-            service.users()
-            .messages()
-            .attachments()
-            .get(userId="me", messageId=msg_id, id=att_id)
-            .execute()
-        )
-        data = base64.urlsafe_b64decode(att["data"])
-        return fname, data
+    def _find_html(payload: dict) -> str | None:
+        """Recursively search MIME parts for text/html."""
+        mime = payload.get("mimeType", "")
+        if mime == "text/html":
+            data = payload.get("body", {}).get("data", "")
+            if data:
+                return base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
+        for part in payload.get("parts", []):
+            result = _find_html(part)
+            if result:
+                return result
+        return None
 
-    log.warning("No attachment matching '%s' in message %s", filename_re, msg_id)
+    html = _find_html(msg.get("payload", {}))
+    if not html:
+        log.warning("No HTML body found in message %s", msg_id)
+        return ""
+    return html
+
+
+def _extract_download_url(html_body: str) -> str | None:
+    """Find the report download URL in the email HTML.
+
+    Looks for links containing "download" text or pointing to
+    known EveryAction/Bonterra report download domains.
+    """
+    parser = _LinkExtractor()
+    parser.feed(html_body)
+
+    # Strategy 1: link whose text contains "download"
+    for href, text in parser.links:
+        if "download" in text.lower() and href:
+            log.info("Found download link by text: %s", href)
+            return href
+
+    # Strategy 2: link whose URL contains download-related path segments
+    download_keywords = ["download", "export", "report", "csv"]
+    for href, _text in parser.links:
+        href_lower = href.lower()
+        if any(kw in href_lower for kw in download_keywords):
+            log.info("Found download link by URL keyword: %s", href)
+            return href
+
+    # Strategy 3: fall back to any link that is not a mailto/unsubscribe
+    skip_patterns = ("mailto:", "unsubscribe", "preferences", "manage", "#")
+    for href, _text in parser.links:
+        if not any(href.lower().startswith(s) or s in href.lower() for s in skip_patterns):
+            log.info("Using fallback link: %s", href)
+            return href
+
+    log.warning("No download URL found in email body")
     return None
+
+
+def download_csv_from_url(url: str, report_key: str) -> tuple[str, bytes] | None:
+    """Download a CSV file from a URL, following redirects.
+
+    Returns (filename, raw_bytes) or None.
+    """
+    log.info("Downloading CSV from: %s", url)
+
+    try:
+        resp = requests.get(url, timeout=120, allow_redirects=True)
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        log.error("Failed to download CSV from %s: %s", url, exc)
+        return None
+
+    # Determine filename from Content-Disposition header, URL, or report key
+    filename = None
+    cd = resp.headers.get("Content-Disposition", "")
+    if cd:
+        match = re.search(r'filename[*]?=["\']?([^"\';]+)', cd)
+        if match:
+            filename = match.group(1).strip()
+
+    if not filename:
+        # Try to get filename from the final URL path
+        from urllib.parse import urlparse
+        path = urlparse(resp.url).path
+        if path and path.rsplit("/", 1)[-1].endswith(".csv"):
+            filename = path.rsplit("/", 1)[-1]
+
+    if not filename:
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        filename = f"{report_key}_{ts}.csv"
+
+    raw = resp.content
+    log.info(
+        "Downloaded %s (%d bytes, status=%d, redirects=%d)",
+        filename, len(raw), resp.status_code, len(resp.history),
+    )
+    return filename, raw
 
 
 def mark_processed(service, msg_id: str, label_id: str) -> None:
@@ -516,11 +612,16 @@ def process_report(
     for msg_meta in messages:
         msg_id = msg_meta["id"]
         try:
-            result = get_csv_attachment(
-                gmail_service, msg_id, config["filename_pattern"]
-            )
+            # Extract download link from email HTML body
+            html_body = _get_email_body_html(gmail_service, msg_id)
+            download_url = _extract_download_url(html_body)
+            if not download_url:
+                summary["errors"].append(f"No download link found in {msg_id}")
+                continue
+
+            result = download_csv_from_url(download_url, report_key)
             if result is None:
-                summary["errors"].append(f"No matching attachment in {msg_id}")
+                summary["errors"].append(f"Failed to download CSV from {msg_id}")
                 continue
 
             filename, raw_csv = result
