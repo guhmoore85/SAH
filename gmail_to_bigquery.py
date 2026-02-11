@@ -260,23 +260,29 @@ def _clean_column_name(raw: str) -> str:
 
 
 def _infer_bq_type(values: list[str]) -> str:
-    """Guess a BigQuery type from sample string values."""
+    """Guess a BigQuery type from sample string values.
+
+    All numeric columns are mapped to FLOAT64 for consistency
+    (EveryAction mixes integers and decimals across report runs).
+    """
     # Take up to 100 non-empty samples
     samples = [v.strip() for v in values if v.strip()][:100]
     if not samples:
         return "STRING"
 
-    # Check for integers
-    int_re = re.compile(r"^-?\d+$")
-    if all(int_re.match(s) for s in samples):
-        return "INT64"
-
-    # Check for floats / currency
-    float_re = re.compile(r"^-?\$?[\d,]*\.?\d+%?$")
-    if all(float_re.match(s.replace(",", "")) for s in samples):
+    # Check for numeric values (integers or floats / currency) → always FLOAT64
+    num_re = re.compile(r"^-?\$?[\d,]*\.?\d+%?$")
+    if all(num_re.match(s.replace(",", "")) for s in samples):
         return "FLOAT64"
 
-    # Check for dates (YYYY-MM-DD or MM/DD/YYYY)
+    # Check for datetime with time component: M/D/YYYY H:MM:SS AM/PM
+    datetime_re = re.compile(
+        r"^\d{1,2}/\d{1,2}/\d{2,4}\s+\d{1,2}:\d{2}:\d{2}\s*[AaPp][Mm]$"
+    )
+    if all(datetime_re.match(s) for s in samples):
+        return "TIMESTAMP"
+
+    # Check for dates (YYYY-MM-DD or M/D/YYYY)
     date_re = re.compile(
         r"^(\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{2,4})$"
     )
@@ -363,24 +369,27 @@ def _coerce_value(value: str, bq_type: str):
     """Convert a CSV string value to the appropriate Python type for BQ."""
     if not value:
         return None
-    if bq_type == "INT64":
-        try:
-            return int(value.replace(",", "").replace("$", "").rstrip("%"))
-        except ValueError:
-            return None
     if bq_type == "FLOAT64":
         try:
             cleaned = value.replace(",", "").replace("$", "").rstrip("%")
             return float(cleaned)
         except ValueError:
             return None
+    if bq_type == "TIMESTAMP":
+        # Handles "M/D/YYYY H:MM:SS AM/PM" from EveryAction
+        for fmt in ("%m/%d/%Y %I:%M:%S %p", "%Y-%m-%d %H:%M:%S"):
+            try:
+                return datetime.strptime(value, fmt).isoformat()
+            except ValueError:
+                continue
+        return value
     if bq_type == "DATE":
         for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y"):
             try:
                 return datetime.strptime(value, fmt).date().isoformat()
             except ValueError:
                 continue
-        return value  # fallback: pass as string
+        return value
     return value
 
 
