@@ -1,0 +1,55 @@
+name: "Gmail → BigQuery (Weekly Reports)"
+
+on:
+  schedule:
+    # Every Monday at 9 AM UTC
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Report mode to run"
+        required: false
+        default: "weekly"
+        type: choice
+        options:
+          - weekly
+          - all
+
+concurrency:
+  group: gmail-bq-weekly
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Gmail → BigQuery sync (weekly)
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          BQ_PROJECT: "stopaapihate-472516"
+          BQ_DATASET: "everyaction_reports"
+          GMAIL_USER: "hmoore@stopaapihate.org"
+        run: |
+          python gmail_to_bigquery.py --mode ${{ github.event.inputs.mode || 'weekly' }} 2>&1 | tee sync_weekly.log
+
+      - name: Upload sync log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gmail-bq-weekly-log-${{ github.run_id }}
+          path: sync_weekly.log
+          retention-days: 14
