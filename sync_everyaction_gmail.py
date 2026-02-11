@@ -63,13 +63,13 @@ REPORT_CONFIGS = {
         "schedule": "daily",
     },
     "sah_donors": {
-        "subject_pattern": "EveryAction Scheduled Report - SAH Donors Data",
+        "subject_pattern": "EveryAction Scheduled Report - SAH Donors Daily Count",
         "filename_pattern": r"SAH_Donors_D_.*\.csv",
         "table": "sah_donors",
         "schedule": "daily",
     },
     "daily_sah_365": {
-        "subject_pattern": "EveryAction Scheduled Report - Daily SAH 365",
+        "subject_pattern": "EveryAction Scheduled Report - Daily SAH 365 List Count",
         "filename_pattern": r"Daily_SAH_36_.*\.csv",
         "table": "daily_sah_365",
         "schedule": "daily",
