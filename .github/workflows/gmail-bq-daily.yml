@@ -1,0 +1,57 @@
+name: "Gmail → BigQuery (Daily Reports)"
+
+on:
+  schedule:
+    # Every day at 9 AM UTC
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Report mode to run"
+        required: false
+        default: "daily"
+        type: choice
+        options:
+          - daily
+          - all
+
+concurrency:
+  group: gmail-bq-daily
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Gmail → BigQuery sync (daily)
+        env:
+          GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          BQ_PROJECT: "stopaapihate-472516"
+          BQ_DATASET: "everyaction_reports"
+        run: |
+          python sync_everyaction_gmail.py --mode ${{ github.event.inputs.mode || 'daily' }} 2>&1 | tee sync_daily.log
+
+      - name: Upload sync log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gmail-bq-daily-log-${{ github.run_id }}
+          path: sync_daily.log
+          retention-days: 14
