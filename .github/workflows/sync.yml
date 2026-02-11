@@ -4,7 +4,7 @@ on:
   # Run daily at 6 AM UTC (adjust as needed)
   schedule:
     - cron: '0 6 * * *'
-
+  
   # Allow manual trigger from GitHub UI
   workflow_dispatch:
     inputs:
@@ -14,39 +14,92 @@ on:
         default: '0'
         type: string
 
+# Prevent overlapping sync runs
+concurrency:
+  group: airtable-sync
+  cancel-in-progress: false
+
 jobs:
   sync:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 30  # Adjust based on your data size
+    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
+      
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
-
+      
       - name: Install dependencies
         run: pip install -r requirements.txt
-
-      - name: Run sync script
+      
+      - name: Run sync script with retry
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 20
+          max_attempts: 3
+          retry_wait_seconds: 60
+          command: python sync_ga4_airtable.py
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           AIRTABLE_PAT: ${{ secrets.AIRTABLE_PAT }}
           AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
           AIRTABLE_TABLE_ID: ${{ secrets.AIRTABLE_TABLE_ID }}
-          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-          GOOGLE_SHEET_TAB: ${{ secrets.GOOGLE_SHEET_TAB }}
+          GOOGLE_SHEET_ID: ${{ vars.GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_TAB: ${{ vars.GOOGLE_SHEET_TAB }}
           ROW_LIMIT: ${{ github.event.inputs.row_limit || '0' }}
-        run: python sync_ga4_airtable.py
-
-      - name: Report status
+      
+      - name: Generate sync summary
         if: always()
         run: |
+          echo "### 📊 Sync Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Timestamp | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Row Limit | ${{ github.event.inputs.row_limit || 'None (full sync)' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trigger | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
           if [ "${{ job.status }}" == "success" ]; then
-            echo "✅ Sync completed successfully"
+            echo "✅ **Sync completed successfully**" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ Sync failed - check logs above"
+            echo "❌ **Sync failed** - check logs above for details" >> $GITHUB_STEP_SUMMARY
           fi
+      
+      - name: Upload sync logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-logs-${{ github.run_number }}
+          path: |
+            *.log
+            sync_output.txt
+          retention-days: 7
+          if-no-files-found: ignore
+      
+      # Optional: Uncomment to enable email notifications on failure
+      # - name: Notify on failure
+      #   if: failure()
+      #   uses: dawidd6/action-send-mail@v3
+      #   with:
+      #     server_address: smtp.gmail.com
+      #     server_port: 465
+      #     secure: true
+      #     username: ${{ secrets.EMAIL_USERNAME }}
+      #     password: ${{ secrets.EMAIL_PASSWORD }}
+      #     subject: '❌ Airtable Sync Failed'
+      #     body: |
+      #       The Airtable sync workflow failed.
+      #       
+      #       View logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      #       
+      #       Triggered by: ${{ github.event_name }}
+      #       Timestamp: ${{ github.event.head_commit.timestamp }}
+      #     to: your-email@example.com
+      #     from: GitHub Actions <noreply@github.com>
