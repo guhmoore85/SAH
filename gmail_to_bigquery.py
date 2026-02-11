@@ -62,13 +62,13 @@ REPORT_CONFIGS = {
         "schedule": "daily",
     },
     "email_comparison": {
-        "subject_pattern": "EveryAction Scheduled Report - Email Comparison",
+        "subject_pattern": "EveryAction Scheduled Report - Email Comparison Report",
         "filename_pattern": r"Email_Compar_.*\.csv",
         "table": "email_comparison",
         "schedule": "weekly",
     },
     "forms_report": {
-        "subject_pattern": "EveryAction Scheduled Report - Forms Report",
+        "subject_pattern": "EveryAction Scheduled Report - Forms report",
         "filename_pattern": r"Forms_report_.*\.csv",
         "table": "forms_report",
         "schedule": "weekly",
@@ -159,10 +159,10 @@ def search_emails(service, subject_pattern: str) -> list[dict]:
     """Search Gmail for unread messages from the EveryAction sender matching
     the given subject. Returns a list of message metadata dicts."""
     query = (
-        f"from:{SENDER_EMAIL} "
-        f"subject:({subject_pattern}) "
-        f"-label:{PROCESSED_LABEL} "
-        "has:attachment"
+        f'from:{SENDER_EMAIL} '
+        f'subject:("{subject_pattern}") '
+        f'-label:{PROCESSED_LABEL} '
+        'has:attachment'
     )
     log.info("Gmail query: %s", query)
 
