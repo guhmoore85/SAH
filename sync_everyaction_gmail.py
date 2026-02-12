@@ -61,18 +61,21 @@ REPORT_CONFIGS = {
         "filename_pattern": r"Daily_Full_L_.*\.csv",
         "table": "daily_full_list",
         "schedule": "daily",
+        "summary_only": True,
     },
     "sah_donors": {
         "subject_pattern": "EveryAction Scheduled Report - SAH Donors Daily Count",
         "filename_pattern": r"SAH_Donors_D_.*\.csv",
         "table": "sah_donors",
         "schedule": "daily",
+        "summary_only": True,
     },
     "daily_sah_365": {
         "subject_pattern": "EveryAction Scheduled Report - Daily SAH 365 List Count",
         "filename_pattern": r"Daily_SAH_36_.*\.csv",
         "table": "daily_sah_365",
         "schedule": "daily",
+        "summary_only": True,
     },
     "email_comparison": {
         "subject_pattern": "EveryAction Scheduled Report - Email Comparison Report",
@@ -572,6 +575,68 @@ def load_rows_to_bigquery(
 
 
 # ---------------------------------------------------------------------------
+# Daily summary helper
+# ---------------------------------------------------------------------------
+
+_SUMMARY_SCHEMA = [
+    bigquery.SchemaField("report_date", "DATE"),
+    bigquery.SchemaField("record_count", "INT64"),
+    bigquery.SchemaField("_import_timestamp", "TIMESTAMP"),
+    bigquery.SchemaField("_source_filename", "STRING"),
+    bigquery.SchemaField("_email_date", "STRING"),
+    bigquery.SchemaField("_gmail_message_id", "STRING"),
+]
+
+
+def load_daily_summary(
+    client: bigquery.Client,
+    table_id: str,
+    record_count: int,
+    source_filename: str,
+    email_date: str,
+    gmail_msg_id: str,
+) -> int:
+    """Store a single summary row (date + count) for a daily report."""
+    full_id = f"{BQ_PROJECT}.{BQ_DATASET}.{table_id}"
+
+    # Create table if needed
+    table = bigquery.Table(full_id, schema=_SUMMARY_SCHEMA)
+    try:
+        table = client.get_table(full_id)
+    except Exception:
+        table = client.create_table(table)
+        log.info("Created summary table %s", full_id)
+
+    # Parse the email date down to just the date portion
+    report_date = datetime.fromisoformat(email_date).date().isoformat()
+
+    row = {
+        "report_date": report_date,
+        "record_count": record_count,
+        "_import_timestamp": datetime.now(timezone.utc).isoformat(),
+        "_source_filename": source_filename,
+        "_email_date": email_date,
+        "_gmail_message_id": gmail_msg_id,
+    }
+
+    ndjson = json.dumps(row)
+    job_config = bigquery.LoadJobConfig(
+        source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
+        write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+        schema=_SUMMARY_SCHEMA,
+    )
+    job = client.load_table_from_file(
+        io.BytesIO(ndjson.encode("utf-8")),
+        full_id,
+        job_config=job_config,
+    )
+    job.result()
+
+    log.info("Loaded summary row into %s: %s → %d records", full_id, report_date, record_count)
+    return 1
+
+
+# ---------------------------------------------------------------------------
 # Ensure BQ dataset exists
 # ---------------------------------------------------------------------------
 
@@ -633,19 +698,31 @@ def process_report(
                 summary["errors"].append(f"Empty CSV {filename}")
                 continue
 
-            log.info(
-                "Processing %s: %d rows, %d columns", filename, len(rows), len(columns)
-            )
-
-            loaded = load_rows_to_bigquery(
-                bq_client,
-                config["table"],
-                columns,
-                rows,
-                source_filename=filename,
-                email_date=email_date,
-                gmail_msg_id=msg_id,
-            )
+            if config.get("summary_only"):
+                log.info(
+                    "Processing %s (summary): %d records found", filename, len(rows)
+                )
+                loaded = load_daily_summary(
+                    bq_client,
+                    config["table"],
+                    record_count=len(rows),
+                    source_filename=filename,
+                    email_date=email_date,
+                    gmail_msg_id=msg_id,
+                )
+            else:
+                log.info(
+                    "Processing %s: %d rows, %d columns", filename, len(rows), len(columns)
+                )
+                loaded = load_rows_to_bigquery(
+                    bq_client,
+                    config["table"],
+                    columns,
+                    rows,
+                    source_filename=filename,
+                    email_date=email_date,
+                    gmail_msg_id=msg_id,
+                )
             summary["rows_loaded"] += loaded
 
             mark_processed(gmail_service, msg_id, label_id)
