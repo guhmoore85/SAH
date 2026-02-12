@@ -22,7 +22,7 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 30  # Adjust based on your data size
+    timeout-minutes: 60  # Increased from 30 to 60 for large datasets
     
     steps:
       - name: Checkout repository
@@ -40,7 +40,7 @@ jobs:
       - name: Run sync script with retry
         uses: nick-fields/retry@v3
         with:
-          timeout_minutes: 20
+          timeout_minutes: 50  # Increased from 20 to 50 (must be less than job timeout)
           max_attempts: 3
           retry_wait_seconds: 60
           command: python sync_ga4_airtable.py
