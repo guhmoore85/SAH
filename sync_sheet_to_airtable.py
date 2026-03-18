@@ -6,7 +6,9 @@ Reads data from any Google Sheet tab and syncs it to an Airtable table.
 Designed to be reusable across multiple pipelines (GA4, EveryAction, Social
 Media, etc.) — all configuration is driven by environment variables.
 
-Strategy: full-replace (delete all existing records, then batch-insert).
+Strategy (configurable via SYNC_MODE):
+  - "upsert" (default): match on key fields, update existing rows, insert new ones
+  - "replace": delete all existing records then batch-insert (legacy mode)
 
 Environment variables:
     GOOGLE_SERVICE_ACCOUNT_JSON  - Service account credentials (JSON string)
@@ -16,6 +18,8 @@ Environment variables:
     AIRTABLE_TABLE_ID            - Destination Airtable table ID
     GOOGLE_SHEET_ID              - Source Google Sheet ID
     GOOGLE_SHEET_TAB             - Source tab/worksheet name
+    SYNC_MODE                    - "upsert" (default) or "replace"
+    SYNC_KEY_FIELDS              - Comma-separated fields for upsert key (e.g. "type,name")
     ROW_LIMIT                    - (optional) Limit rows for testing
 
 Usage:
@@ -46,6 +50,9 @@ GOOGLE_SHEET_TAB = os.getenv("GOOGLE_SHEET_TAB")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
 AIRTABLE_TABLE_ID = os.getenv("AIRTABLE_TABLE_ID")
 AIRTABLE_PAT = os.getenv("AIRTABLE_PAT")
+
+SYNC_MODE = os.getenv("SYNC_MODE", "upsert").lower()  # "upsert" or "replace"
+SYNC_KEY_FIELDS = [f.strip() for f in os.getenv("SYNC_KEY_FIELDS", "").split(",") if f.strip()]
 
 ROW_LIMIT = int(os.getenv("ROW_LIMIT", 0)) or None
 
@@ -248,10 +255,22 @@ def transform_row(headers: list[str], row: list[Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+def _make_key(record_fields: dict, key_fields: list[str]) -> tuple:
+    """Build a hashable composite key from a record's fields."""
+    return tuple(str(record_fields.get(k, "")).strip().lower() for k in key_fields)
+
+
+def fetch_existing_records(table) -> list[dict]:
+    """Fetch all existing records from Airtable."""
+    logger.info("Fetching existing Airtable records...")
+    records = retry_operation(table.all)
+    logger.info("Found %d existing records", len(records))
+    return records
+
+
 def delete_all_records(table) -> int:
     """Delete all existing records from the Airtable table."""
-    logger.info("Fetching existing records for deletion...")
-    all_records = retry_operation(table.all)
+    all_records = fetch_existing_records(table)
     record_ids = [r["id"] for r in all_records]
 
     if not record_ids:
@@ -291,13 +310,80 @@ def create_records_batch(table, records: list[dict]) -> int:
     return created
 
 
+def upsert_records(table, new_records: list[dict], key_fields: list[str]) -> dict:
+    """Upsert: update existing records that match on key_fields, insert new ones.
+
+    Returns dict with counts: created, updated, skipped (unchanged).
+    """
+    existing = fetch_existing_records(table)
+
+    # Build lookup: composite key → {airtable_record_id, fields}
+    existing_by_key = {}
+    for rec in existing:
+        key = _make_key(rec["fields"], key_fields)
+        existing_by_key[key] = {"id": rec["id"], "fields": rec["fields"]}
+
+    to_create = []
+    to_update = []
+    skipped = 0
+
+    for record in new_records:
+        key = _make_key(record, key_fields)
+        match = existing_by_key.pop(key, None)
+
+        if match is None:
+            # New record — insert
+            to_create.append(record)
+        else:
+            # Existing record — check if anything changed
+            changed = False
+            for field, value in record.items():
+                existing_val = match["fields"].get(field)
+                # Normalize for comparison (Airtable may return slightly different types)
+                if str(value).strip() != str(existing_val).strip() if existing_val is not None else value is not None:
+                    changed = True
+                    break
+
+            if changed:
+                to_update.append({"id": match["id"], "fields": record})
+            else:
+                skipped += 1
+
+    logger.info(
+        "Upsert plan: %d to create, %d to update, %d unchanged (skipped)",
+        len(to_create), len(to_update), skipped,
+    )
+
+    # Batch create new records
+    created = 0
+    for i in range(0, len(to_create), BATCH_SIZE):
+        batch = to_create[i : i + BATCH_SIZE]
+        retry_operation(table.batch_create, batch)
+        created += len(batch)
+        if created % 100 == 0 or created == len(to_create):
+            logger.info("Created %d/%d new records", created, len(to_create))
+        time.sleep(BATCH_SLEEP)
+
+    # Batch update existing records
+    updated = 0
+    for i in range(0, len(to_update), BATCH_SIZE):
+        batch = to_update[i : i + BATCH_SIZE]
+        retry_operation(table.batch_update, batch)
+        updated += len(batch)
+        if updated % 100 == 0 or updated == len(to_update):
+            logger.info("Updated %d/%d existing records", updated, len(to_update))
+        time.sleep(BATCH_SLEEP)
+
+    return {"created": created, "updated": updated, "skipped": skipped}
+
+
 # ---------------------------------------------------------------------------
 # Main sync
 # ---------------------------------------------------------------------------
 
 
 def sync() -> dict[str, Any]:
-    """Run the full sync: read Google Sheets → replace Airtable records.
+    """Run the sync: read Google Sheets → upsert or replace Airtable records.
 
     Returns a stats dict.
     """
@@ -308,9 +394,12 @@ def sync() -> dict[str, Any]:
         "sheet_tab": GOOGLE_SHEET_TAB,
         "airtable_base": AIRTABLE_BASE_ID,
         "airtable_table": AIRTABLE_TABLE_ID,
+        "sync_mode": SYNC_MODE,
         "rows_read": 0,
         "records_deleted": 0,
         "records_created": 0,
+        "records_updated": 0,
+        "records_skipped": 0,
         "errors": [],
         "success": False,
     }
@@ -320,6 +409,9 @@ def sync() -> dict[str, Any]:
         logger.info("Google Sheets → Airtable Sync")
         logger.info("  Sheet: %s / %s", GOOGLE_SHEET_ID, GOOGLE_SHEET_TAB)
         logger.info("  Airtable: %s / %s", AIRTABLE_BASE_ID, AIRTABLE_TABLE_ID)
+        logger.info("  Mode: %s", SYNC_MODE)
+        if SYNC_KEY_FIELDS:
+            logger.info("  Key fields: %s", ", ".join(SYNC_KEY_FIELDS))
         logger.info("=" * 60)
 
         # Validate required config
@@ -329,6 +421,12 @@ def sync() -> dict[str, Any]:
                 missing.append(var)
         if missing:
             raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
+
+        if SYNC_MODE == "upsert" and not SYNC_KEY_FIELDS:
+            raise ValueError(
+                "SYNC_KEY_FIELDS is required when SYNC_MODE=upsert. "
+                "Set it to a comma-separated list of field names (e.g. 'type,name')."
+            )
 
         # Initialize clients
         gs_client = get_google_sheets_client()
@@ -355,9 +453,16 @@ def sync() -> dict[str, Any]:
         if not records:
             raise ValueError("No valid records to sync")
 
-        # Full replace: delete existing, then insert new
-        stats["records_deleted"] = delete_all_records(airtable_table)
-        stats["records_created"] = create_records_batch(airtable_table, records)
+        if SYNC_MODE == "upsert":
+            result = upsert_records(airtable_table, records, SYNC_KEY_FIELDS)
+            stats["records_created"] = result["created"]
+            stats["records_updated"] = result["updated"]
+            stats["records_skipped"] = result["skipped"]
+        else:
+            # Full replace mode
+            stats["records_deleted"] = delete_all_records(airtable_table)
+            stats["records_created"] = create_records_batch(airtable_table, records)
+
         stats["success"] = True
 
     except Exception as e:
@@ -373,10 +478,16 @@ def sync() -> dict[str, Any]:
         logger.info("=" * 60)
         logger.info("Sync Summary")
         logger.info("=" * 60)
+        logger.info("  Mode:            %s", SYNC_MODE)
         logger.info("  Duration:        %.1f seconds", stats["duration_seconds"])
         logger.info("  Rows read:       %d", stats["rows_read"])
-        logger.info("  Records deleted: %d", stats["records_deleted"])
-        logger.info("  Records created: %d", stats["records_created"])
+        if SYNC_MODE == "upsert":
+            logger.info("  Records created: %d", stats["records_created"])
+            logger.info("  Records updated: %d", stats["records_updated"])
+            logger.info("  Records skipped: %d (unchanged)", stats["records_skipped"])
+        else:
+            logger.info("  Records deleted: %d", stats["records_deleted"])
+            logger.info("  Records created: %d", stats["records_created"])
         logger.info("  Errors:          %d", len(stats["errors"]))
         logger.info("  Success:         %s", stats["success"])
         logger.info("=" * 60)
