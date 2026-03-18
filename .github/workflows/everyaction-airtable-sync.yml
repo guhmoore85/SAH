@@ -1,0 +1,85 @@
+name: Sync EveryAction to Airtable
+
+on:
+  # Run daily at 10 AM UTC (after the Gmail → BQ pipelines at 9 AM)
+  schedule:
+    - cron: '0 10 * * *'
+
+  # Allow manual trigger from GitHub UI
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Sync mode'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - summaries
+          - details
+
+# Prevent overlapping sync runs
+concurrency:
+  group: everyaction-airtable-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run EveryAction → Airtable sync
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 25
+          max_attempts: 3
+          retry_wait_seconds: 60
+          command: python sync_everyaction_airtable.py --mode ${{ github.event.inputs.mode || 'all' }}
+        env:
+          # BigQuery (source)
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          BQ_PROJECT: stopaapihate-472516
+          BQ_DATASET: everyaction_reports
+          # Airtable (destination)
+          AIRTABLE_PAT: ${{ secrets.AIRTABLE_PAT }}
+          # Daily summaries table
+          EA_SUMMARIES_BASE_ID: ${{ secrets.EA_SUMMARIES_BASE_ID }}
+          EA_SUMMARIES_TABLE_ID: ${{ secrets.EA_SUMMARIES_TABLE_ID }}
+          # Email comparison detail table
+          EA_EMAIL_COMPARISON_BASE_ID: ${{ secrets.EA_EMAIL_COMPARISON_BASE_ID }}
+          EA_EMAIL_COMPARISON_TABLE_ID: ${{ secrets.EA_EMAIL_COMPARISON_TABLE_ID }}
+          # Forms report detail table
+          EA_FORMS_REPORT_BASE_ID: ${{ secrets.EA_FORMS_REPORT_BASE_ID }}
+          EA_FORMS_REPORT_TABLE_ID: ${{ secrets.EA_FORMS_REPORT_TABLE_ID }}
+
+      - name: Generate sync summary
+        if: always()
+        run: |
+          echo "### EveryAction → Airtable Sync Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Mode | ${{ github.event.inputs.mode || 'all' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Timestamp | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trigger | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "Sync completed successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Sync failed - check logs above for details" >> $GITHUB_STEP_SUMMARY
+          fi
