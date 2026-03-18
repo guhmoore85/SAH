@@ -61,18 +61,24 @@ REPORT_CONFIGS = {
         "filename_pattern": r"Daily_Full_L_.*\.csv",
         "table": "daily_full_list",
         "schedule": "daily",
+        "summary_only": True,
+        "summary_fields": ["subscription_status", "unsubscribe_method"],
     },
     "sah_donors": {
         "subject_pattern": "EveryAction Scheduled Report - SAH Donors Daily Count",
         "filename_pattern": r"SAH_Donors_D_.*\.csv",
         "table": "sah_donors",
         "schedule": "daily",
+        "summary_only": True,
+        "summary_fields": ["subscription_status", "unsubscribe_method"],
     },
     "daily_sah_365": {
         "subject_pattern": "EveryAction Scheduled Report - Daily SAH 365 List Count",
         "filename_pattern": r"Daily_SAH_36_.*\.csv",
         "table": "daily_sah_365",
         "schedule": "daily",
+        "summary_only": True,
+        "summary_fields": ["subscription_status", "unsubscribe_method"],
     },
     "email_comparison": {
         "subject_pattern": "EveryAction Scheduled Report - Email Comparison Report",
@@ -439,6 +445,26 @@ def csv_to_rows(raw: bytes) -> tuple[list[str], list[dict]]:
     return clean_headers, rows
 
 
+def _compute_breakdowns(
+    rows: list[dict], fields: list[str]
+) -> dict[str, dict[str, int]]:
+    """Count occurrences of each unique value for the specified columns.
+
+    Returns e.g. {"subscription_status": {"Subscribed": 500, "Unsubscribed": 42}, ...}
+    Fields that don't exist in the CSV are silently skipped.
+    """
+    breakdowns: dict[str, dict[str, int]] = {}
+    for field in fields:
+        counts: dict[str, int] = {}
+        for row in rows:
+            val = row.get(field, "").strip()
+            if val:
+                counts[val] = counts.get(val, 0) + 1
+        if counts:
+            breakdowns[field] = counts
+    return breakdowns
+
+
 def ensure_table(
     client: bigquery.Client,
     table_id: str,
@@ -572,6 +598,96 @@ def load_rows_to_bigquery(
 
 
 # ---------------------------------------------------------------------------
+# Daily summary helper
+# ---------------------------------------------------------------------------
+
+def load_daily_summary(
+    client: bigquery.Client,
+    table_id: str,
+    record_count: int,
+    breakdowns: dict[str, dict[str, int]],
+    source_filename: str,
+    email_date: str,
+    gmail_msg_id: str,
+) -> int:
+    """Store a single summary row with total count and per-field breakdowns.
+
+    Each breakdown field (e.g. subscription_status) is stored as a JSON
+    STRING column named ``{field}_counts`` so it's easy to query in BigQuery
+    with ``JSON_EXTRACT_SCALAR``.
+    """
+    full_id = f"{BQ_PROJECT}.{BQ_DATASET}.{table_id}"
+
+    # Build schema: core fields + one JSON column per breakdown + metadata
+    schema = [
+        bigquery.SchemaField("report_date", "DATE"),
+        bigquery.SchemaField("record_count", "INT64"),
+    ]
+    for field_name in sorted(breakdowns.keys()):
+        schema.append(bigquery.SchemaField(f"{field_name}_counts", "STRING"))
+    schema.extend([
+        bigquery.SchemaField("_import_timestamp", "TIMESTAMP"),
+        bigquery.SchemaField("_source_filename", "STRING"),
+        bigquery.SchemaField("_email_date", "STRING"),
+        bigquery.SchemaField("_gmail_message_id", "STRING"),
+    ])
+
+    # Create table or merge in new columns if needed
+    table = bigquery.Table(full_id, schema=schema)
+    try:
+        existing = client.get_table(full_id)
+        existing_names = {f.name for f in existing.schema}
+        merged = list(existing.schema)
+        for field in schema:
+            if field.name not in existing_names:
+                merged.append(field)
+        if len(merged) > len(existing.schema):
+            existing.schema = merged
+            client.update_table(existing, ["schema"])
+            log.info("Updated summary schema for %s (added breakdown columns)", full_id)
+        table = existing
+    except Exception:
+        table = client.create_table(table)
+        log.info("Created summary table %s", full_id)
+
+    # Parse the email date down to just the date portion
+    report_date = datetime.fromisoformat(email_date).date().isoformat()
+
+    row = {
+        "report_date": report_date,
+        "record_count": record_count,
+        "_import_timestamp": datetime.now(timezone.utc).isoformat(),
+        "_source_filename": source_filename,
+        "_email_date": email_date,
+        "_gmail_message_id": gmail_msg_id,
+    }
+    for field_name, counts in breakdowns.items():
+        row[f"{field_name}_counts"] = json.dumps(counts, sort_keys=True)
+
+    ndjson = json.dumps(row)
+    job_config = bigquery.LoadJobConfig(
+        source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
+        write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+        schema=table.schema,
+    )
+    job = client.load_table_from_file(
+        io.BytesIO(ndjson.encode("utf-8")),
+        full_id,
+        job_config=job_config,
+    )
+    job.result()
+
+    breakdown_info = ", ".join(
+        f"{k}: {len(v)} values" for k, v in breakdowns.items()
+    )
+    log.info(
+        "Loaded summary row into %s: %s → %d records (%s)",
+        full_id, report_date, record_count, breakdown_info or "no breakdowns",
+    )
+    return 1
+
+
+# ---------------------------------------------------------------------------
 # Ensure BQ dataset exists
 # ---------------------------------------------------------------------------
 
@@ -633,19 +749,35 @@ def process_report(
                 summary["errors"].append(f"Empty CSV {filename}")
                 continue
 
-            log.info(
-                "Processing %s: %d rows, %d columns", filename, len(rows), len(columns)
-            )
-
-            loaded = load_rows_to_bigquery(
-                bq_client,
-                config["table"],
-                columns,
-                rows,
-                source_filename=filename,
-                email_date=email_date,
-                gmail_msg_id=msg_id,
-            )
+            if config.get("summary_only"):
+                breakdowns = _compute_breakdowns(
+                    rows, config.get("summary_fields", [])
+                )
+                log.info(
+                    "Processing %s (summary): %d records found", filename, len(rows)
+                )
+                loaded = load_daily_summary(
+                    bq_client,
+                    config["table"],
+                    record_count=len(rows),
+                    breakdowns=breakdowns,
+                    source_filename=filename,
+                    email_date=email_date,
+                    gmail_msg_id=msg_id,
+                )
+            else:
+                log.info(
+                    "Processing %s: %d rows, %d columns", filename, len(rows), len(columns)
+                )
+                loaded = load_rows_to_bigquery(
+                    bq_client,
+                    config["table"],
+                    columns,
+                    rows,
+                    source_filename=filename,
+                    email_date=email_date,
+                    gmail_msg_id=msg_id,
+                )
             summary["rows_loaded"] += loaded
 
             mark_processed(gmail_service, msg_id, label_id)
