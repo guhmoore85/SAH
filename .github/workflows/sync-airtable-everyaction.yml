@@ -1,22 +1,18 @@
 name: Sync EveryAction to Airtable
 
 on:
-  # Run daily at 10 AM UTC (after the Gmail → BQ pipelines at 9 AM)
+  # Run daily at 6:30 AM UTC (30 minutes after BigQuery refresh at 6:00 AM)
   schedule:
-    - cron: '0 10 * * *'
+    - cron: '30 6 * * *'
 
   # Allow manual trigger from GitHub UI
   workflow_dispatch:
     inputs:
-      mode:
-        description: 'Sync mode'
+      row_limit:
+        description: 'Limit rows for testing (0 = no limit)'
         required: false
-        default: 'all'
-        type: choice
-        options:
-          - all
-          - summaries
-          - details
+        default: '0'
+        type: string
 
 # Prevent overlapping sync runs
 concurrency:
@@ -26,7 +22,7 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
@@ -44,26 +40,18 @@ jobs:
       - name: Run EveryAction → Airtable sync
         uses: nick-fields/retry@v3
         with:
-          timeout_minutes: 25
+          timeout_minutes: 50
           max_attempts: 3
           retry_wait_seconds: 60
-          command: python sync_everyaction_airtable.py --mode ${{ github.event.inputs.mode || 'all' }}
+          command: python sync_sheet_to_airtable.py
         env:
-          # BigQuery (source)
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-          BQ_PROJECT: stopaapihate-472516
-          BQ_DATASET: everyaction_reports
-          # Airtable (destination)
           AIRTABLE_PAT: ${{ secrets.AIRTABLE_PAT }}
-          # Daily summaries table
-          EA_SUMMARIES_BASE_ID: ${{ secrets.EA_SUMMARIES_BASE_ID }}
-          EA_SUMMARIES_TABLE_ID: ${{ secrets.EA_SUMMARIES_TABLE_ID }}
-          # Email comparison detail table
-          EA_EMAIL_COMPARISON_BASE_ID: ${{ secrets.EA_EMAIL_COMPARISON_BASE_ID }}
-          EA_EMAIL_COMPARISON_TABLE_ID: ${{ secrets.EA_EMAIL_COMPARISON_TABLE_ID }}
-          # Forms report detail table
-          EA_FORMS_REPORT_BASE_ID: ${{ secrets.EA_FORMS_REPORT_BASE_ID }}
-          EA_FORMS_REPORT_TABLE_ID: ${{ secrets.EA_FORMS_REPORT_TABLE_ID }}
+          AIRTABLE_BASE_ID: ${{ secrets.EVERYACTION_AIRTABLE_BASE_ID }}
+          AIRTABLE_TABLE_ID: ${{ secrets.EVERYACTION_AIRTABLE_TABLE_ID }}
+          GOOGLE_SHEET_ID: ${{ secrets.EVERYACTION_GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_TAB: everyaction_master
+          ROW_LIMIT: ${{ github.event.inputs.row_limit || '0' }}
 
       - name: Generate sync summary
         if: always()
@@ -73,8 +61,8 @@ jobs:
           echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Status | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Mode | ${{ github.event.inputs.mode || 'all' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Timestamp | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Row Limit | ${{ github.event.inputs.row_limit || 'None (full sync)' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Trigger | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
@@ -83,3 +71,13 @@ jobs:
           else
             echo "Sync failed - check logs above for details" >> $GITHUB_STEP_SUMMARY
           fi
+
+      - name: Upload sync logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: everyaction-sync-logs-${{ github.run_number }}
+          path: |
+            *.log
+          retention-days: 7
+          if-no-files-found: ignore
