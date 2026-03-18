@@ -23,10 +23,16 @@ Airtable base. These columns come from the BigQuery query in
 | 13 | `recipients` | Number (integer) | Email recipients count |
 | 14 | `unique_open_rate` | Percent | Stored as decimal (0.35 = 35%) |
 | 15 | `unique_click_rate` | Percent | Stored as decimal (0.12 = 12%) |
-| 16 | `submissions` | Number (integer) | Form submissions count |
-| 17 | `views` | Number (integer) | Form page views |
-| 18 | `form_type` | Single line text | E.g. "Petition", "Survey", "Signup" |
-| 19 | `form_status` | Single line text | E.g. "Active", "Inactive" |
+| 16 | `bounce_rate` | Percent | Stored as decimal (0.05 = 5%) |
+| 17 | `unsubscribe_rate` | Percent | Stored as decimal (0.01 = 1%) |
+| 18 | `submissions` | Number (integer) | Form submissions count |
+| 19 | `views` | Number (integer) | Form page views |
+| 20 | `form_type` | Single line text | E.g. "Petition", "Survey", "Signup" |
+| 21 | `form_status` | Single line text | E.g. "Active", "Inactive" |
+| 22 | `recurring_commitments` | Number (integer) | Recurring donor commitments |
+| 23 | `new_contacts` | Number (integer) | New contacts acquired |
+| 24 | `recipient_list` | Long text | Names/IDs of recipient lists used |
+| 25 | `excluded_list` | Long text | Names/IDs of excluded lists |
 
 ## Auto-Coercion Behavior
 
@@ -52,9 +58,9 @@ The `sync_sheet_to_airtable.py` script automatically coerces cell values:
 2. **Single select fields** (`type`): Add the known options ("Email", "Form")
    in advance so Airtable can color-code them.
 
-3. **Percent fields** (`conversion_rate`, `unique_open_rate`, `unique_click_rate`):
-   Set the Airtable field to "Percent" type. The script sends values as decimals
-   (e.g. 0.452), which Airtable displays as 45.2%.
+3. **Percent fields** (`conversion_rate`, `unique_open_rate`, `unique_click_rate`,
+   `bounce_rate`, `unsubscribe_rate`): Set the Airtable field to "Percent" type.
+   The script sends values as decimals (e.g. 0.452), which Airtable displays as 45.2%.
 
 4. **Currency fields** (`amount_raised`, `avg_contribution_amount`):
    Set the Airtable field to "Currency" with USD. The script strips `$` and `,`

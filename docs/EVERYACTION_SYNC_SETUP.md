@@ -39,10 +39,16 @@ SELECT
   recipients,
   unique_open_rate,
   unique_click_rate,
+  bounce_rate,
+  unsubscribe_rate,
   submissions,
   views,
   form_type,
-  form_status
+  form_status,
+  recurring_commitments,
+  new_contacts,
+  recipient_list,
+  excluded_list
 FROM stopaapihate-472516.everyaction_reports.everyaction_combined
 ORDER BY last_date DESC
 ```
@@ -81,10 +87,16 @@ ORDER BY last_date DESC
 | recipients | Number (integer) |
 | unique_open_rate | Percent |
 | unique_click_rate | Percent |
+| bounce_rate | Percent |
+| unsubscribe_rate | Percent |
 | submissions | Number (integer) |
 | views | Number (integer) |
 | form_type | Single line text |
 | form_status | Single line text |
+| recurring_commitments | Number (integer) |
+| new_contacts | Number (integer) |
+| recipient_list | Long text |
+| excluded_list | Long text |
 
 4. **Copy the Base ID and Table ID** from the Airtable API docs:
    - Base ID: `appA34PWBceEaSXdv`
