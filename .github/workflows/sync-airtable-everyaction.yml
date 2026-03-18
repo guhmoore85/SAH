@@ -51,6 +51,8 @@ jobs:
           AIRTABLE_TABLE_ID: ${{ secrets.EVERYACTION_AIRTABLE_TABLE_ID }}
           GOOGLE_SHEET_ID: ${{ secrets.EVERYACTION_GOOGLE_SHEET_ID }}
           GOOGLE_SHEET_TAB: everyaction_master
+          SYNC_MODE: upsert
+          SYNC_KEY_FIELDS: type,name
           ROW_LIMIT: ${{ github.event.inputs.row_limit || '0' }}
 
       - name: Generate sync summary
