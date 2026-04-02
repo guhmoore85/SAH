@@ -1,0 +1,20 @@
+everyaction:
+  target: prod
+  outputs:
+    prod:
+      type: bigquery
+      method: service-account-json
+      project: stopaapihate-472516
+      dataset: everyaction_reports
+      threads: 4
+      timeout_seconds: 300
+      # In CI, pass credentials via env var DBT_BIGQUERY_KEYFILE_JSON
+      keyfile_json: "{{ env_var('DBT_BIGQUERY_KEYFILE_JSON', '{}') | fromjson }}"
+    dev:
+      type: bigquery
+      method: service-account
+      project: stopaapihate-472516
+      dataset: everyaction_reports_dev
+      threads: 4
+      timeout_seconds: 300
+      keyfile: "{{ env_var('GOOGLE_SERVICE_ACCOUNT_FILE', '') }}"

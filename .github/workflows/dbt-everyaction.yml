@@ -1,0 +1,86 @@
+name: dbt EveryAction Transform
+
+on:
+  # Run daily at 5:45 AM UTC — after Gmail→BigQuery (9 AM UTC),
+  # before Google Sheets refresh (6 AM UTC)
+  # Adjust timing once the pipeline cadence is finalized
+  schedule:
+    - cron: '45 5 * * *'
+
+  workflow_dispatch:
+    inputs:
+      full_refresh:
+        description: 'Run dbt with --full-refresh'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+
+concurrency:
+  group: dbt-everyaction
+  cancel-in-progress: false
+
+jobs:
+  dbt-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: dbt_everyaction
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install dbt-core dbt-bigquery
+
+      - name: Run dbt deps
+        run: dbt deps --profiles-dir .
+
+      - name: Run dbt build (models + tests)
+        run: |
+          REFRESH_FLAG=""
+          if [ "${{ github.event.inputs.full_refresh }}" = "true" ]; then
+            REFRESH_FLAG="--full-refresh"
+          fi
+          dbt build --profiles-dir . $REFRESH_FLAG
+        env:
+          DBT_BIGQUERY_KEYFILE_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+
+      - name: Generate dbt docs
+        if: success()
+        run: dbt docs generate --profiles-dir .
+        env:
+          DBT_BIGQUERY_KEYFILE_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+
+      - name: Upload dbt artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-artifacts-${{ github.run_number }}
+          path: |
+            dbt_everyaction/target/manifest.json
+            dbt_everyaction/target/run_results.json
+            dbt_everyaction/target/catalog.json
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### dbt EveryAction Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Timestamp | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Full Refresh | ${{ github.event.inputs.full_refresh || 'false' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trigger | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY

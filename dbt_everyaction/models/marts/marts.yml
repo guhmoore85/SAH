@@ -1,0 +1,70 @@
+version: 2
+
+models:
+  - name: everyaction_combined
+    description: >
+      Combined view of all EveryAction email campaigns and forms.
+      This is the single source of truth that feeds Google Sheets
+      (via BigQuery Connected Sheets) and then Airtable (via sync_sheet_to_airtable.py).
+
+      To add new fields: update the staging model, add the column here,
+      and run `dbt run`.
+    columns:
+      - name: type
+        description: '"Email" or "Form"'
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Email', 'Form']
+      - name: name
+        description: Campaign or form name
+        tests: [not_null]
+      - name: first_date
+        description: First activity date
+      - name: last_date
+        description: Most recent activity date
+      - name: days_active
+        description: Days between first and last activity
+      - name: year
+        description: Calendar year
+      - name: month
+        description: Month number (1-12)
+      - name: month_name
+        description: Month name (January, February, etc.)
+      - name: conversion_rate
+        description: >
+          For emails: contributions / recipients.
+          For forms: submissions / views.
+          Stored as decimal (0.452 = 45.2%).
+      - name: total_contributions
+        description: Count of contributions
+      - name: amount_raised
+        description: Total dollar amount raised
+      - name: avg_contribution_amount
+        description: Average donation amount
+      - name: recipients
+        description: Email recipients (null for forms)
+      - name: unique_open_rate
+        description: Unique opens / recipients (null for forms)
+      - name: unique_click_rate
+        description: Unique clicks / recipients (null for forms)
+      - name: bounce_rate
+        description: Bounces / recipients (null for forms)
+      - name: unsubscribe_rate
+        description: Unsubscribes / recipients (null for forms)
+      - name: submissions
+        description: Form submissions (null for emails)
+      - name: views
+        description: Form page views (null for emails)
+      - name: form_type
+        description: Form type - Petition, Survey, etc. (null for emails)
+      - name: form_status
+        description: Active or Inactive (null for emails)
+      - name: recurring_commitments
+        description: Recurring donor commitments (null for emails)
+      - name: new_contacts
+        description: New contacts acquired (null for emails)
+      - name: recipient_list
+        description: Recipient list names (null for forms)
+      - name: excluded_list
+        description: Excluded list names (null for forms)

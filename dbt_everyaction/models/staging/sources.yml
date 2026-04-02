@@ -1,0 +1,20 @@
+version: 2
+
+sources:
+  - name: everyaction_reports
+    database: stopaapihate-472516
+    schema: everyaction_reports
+    description: >
+      Raw EveryAction report tables loaded from Gmail CSV exports
+      via sync_everyaction_gmail.py.
+    tables:
+      - name: email_comparison
+        description: Weekly email campaign comparison report
+      - name: forms_report
+        description: Weekly forms/pages report
+      - name: daily_full_list
+        description: Daily full list count summary
+      - name: sah_donors
+        description: Daily SAH donors count summary
+      - name: daily_sah_365
+        description: Daily SAH 365 list count summary
