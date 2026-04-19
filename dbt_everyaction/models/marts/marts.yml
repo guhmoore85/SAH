@@ -68,3 +68,33 @@ models:
         description: Recipient list names (null for forms)
       - name: excluded_list
         description: Excluded list names (null for forms)
+
+  - name: daily_totals
+    description: >
+      Daily subscription status totals for daily_full_list, daily_sah_365,
+      and sah_donors. Reads from the 1-row-per-day summary format introduced
+      on 2026-03-19. Replaces the old BigQuery CREATE OR REPLACE TABLE query
+      that broke when the ingestion switched to summary_only mode.
+    columns:
+      - name: _email_date
+        description: Timestamp when the EveryAction report email was received
+        tests: [not_null]
+      - name: source_table
+        description: Which list the row came from
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['daily_full_list', 'daily_sah_365', 'sah_donors']
+      - name: total_records
+        description: Total contacts in the list on that date
+        tests: [not_null]
+      - name: subscribed
+        description: Count of Subscribed contacts
+      - name: unsubscribed
+        description: Count of Unsubscribed contacts
+      - name: status_unknown
+        description: total_records minus subscribed minus unsubscribed
+      - name: pct_subscribed
+        description: subscribed / total_records * 100, rounded to 2 decimal places
+      - name: pct_unsubscribed
+        description: unsubscribed / total_records * 100, rounded to 2 decimal places
