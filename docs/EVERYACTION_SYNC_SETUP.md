@@ -39,6 +39,7 @@ SELECT
   recipients,
   unique_open_rate,
   unique_click_rate,
+  unique_clicks,
   bounce_rate,
   unsubscribe_rate,
   submissions,
@@ -87,6 +88,7 @@ ORDER BY last_date DESC
 | recipients | Number (integer) |
 | unique_open_rate | Percent |
 | unique_click_rate | Percent |
+| unique_clicks | Number (integer) |
 | bounce_rate | Percent |
 | unsubscribe_rate | Percent |
 | submissions | Number (integer) |
