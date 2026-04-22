@@ -28,7 +28,6 @@ renamed as (
         cast(recipients as int64)                            as recipients,
         cast(unique_open_rate as float64)                    as unique_open_rate,
         cast(unique_click_rate as float64)                   as unique_click_rate,
-        cast(unique_clicks as int64)                         as unique_clicks,
         cast(bounce_rate as float64)                         as bounce_rate,
         cast(unsubscribe_rate as float64)                    as unsubscribe_rate,
 

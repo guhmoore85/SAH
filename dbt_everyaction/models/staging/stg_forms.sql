@@ -42,7 +42,6 @@ renamed as (
         cast(null as int64)                                       as recipients,
         cast(null as float64)                                     as unique_open_rate,
         cast(null as float64)                                     as unique_click_rate,
-        cast(null as int64)                                       as unique_clicks,
         cast(null as float64)                                     as bounce_rate,
         cast(null as float64)                                     as unsubscribe_rate,
         cast(null as string)                                      as recipient_list,
