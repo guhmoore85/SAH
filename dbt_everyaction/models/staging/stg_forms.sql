@@ -9,49 +9,44 @@ with source as (
 renamed as (
     select
         -- Identity
-        'Form'                                           as type,
-        cast(form_name as string)                        as name,
+        'Form'                                                    as type,
+        cast(form_name as string)                                 as name,
 
         -- Dates
-        cast(date_created as date)                       as first_date,
-        cast(last_submission_date as date)                as last_date,
+        cast(first_submission_date as date)                       as first_date,
+        cast(last_submission_date as date)                        as last_date,
         date_diff(
             cast(last_submission_date as date),
-            cast(date_created as date),
+            cast(first_submission_date as date),
             day
-        )                                                as days_active,
-        extract(year from cast(date_created as date))    as year,
-        extract(month from cast(date_created as date))   as month,
-        format_date('%B', cast(date_created as date))    as month_name,
+        )                                                         as days_active,
+        extract(year from cast(first_submission_date as date))    as year,
+        extract(month from cast(first_submission_date as date))   as month,
+        format_date('%B', cast(first_submission_date as date))    as month_name,
 
-        -- Form metrics
-        cast(submissions as int64)                       as submissions,
-        cast(views as int64)                             as views,
-        cast(form_type as string)                        as form_type,
-        cast(form_status as string)                      as form_status,
-        safe_divide(
-            cast(submissions as int64),
-            nullif(cast(views as int64), 0)
-        )                                                as conversion_rate,
+        -- Form metrics (conversion_rate pre-computed in source)
+        cast(number_of_submissions as int64)                      as submissions,
+        cast(number_of_views as int64)                            as views,
+        cast(form_type as string)                                 as form_type,
+        cast(form_status as string)                               as form_status,
+        cast(conversion_rate as float64)                          as conversion_rate,
 
-        -- Contribution metrics
-        cast(total_contributions as int64)               as total_contributions,
-        cast(amount_raised as float64)                   as amount_raised,
-        safe_divide(
-            cast(amount_raised as float64),
-            nullif(cast(total_contributions as int64), 0)
-        )                                                as avg_contribution_amount,
-        cast(recurring_commitments as int64)             as recurring_commitments,
-        cast(new_contacts as int64)                      as new_contacts,
+        -- Contribution metrics (pre-computed in source)
+        cast(number_of_contributions as int64)                    as total_contributions,
+        cast(total_contribution_amount as float64)                as amount_raised,
+        cast(average_contribution_amount as float64)              as avg_contribution_amount,
+        cast(number_of_recurring_commitments as int64)            as recurring_commitments,
+        cast(number_of_new_contacts as int64)                     as new_contacts,
 
         -- Not applicable to forms
-        cast(null as int64)                              as recipients,
-        cast(null as float64)                            as unique_open_rate,
-        cast(null as float64)                            as unique_click_rate,
-        cast(null as float64)                             as bounce_rate,
-        cast(null as float64)                            as unsubscribe_rate,
-        cast(null as string)                             as recipient_list,
-        cast(null as string)                             as excluded_list,
+        cast(null as int64)                                       as recipients,
+        cast(null as float64)                                     as unique_open_rate,
+        cast(null as float64)                                     as unique_click_rate,
+        cast(null as int64)                                       as unique_clicks,
+        cast(null as float64)                                     as bounce_rate,
+        cast(null as float64)                                     as unsubscribe_rate,
+        cast(null as string)                                      as recipient_list,
+        cast(null as string)                                      as excluded_list,
 
         -- Metadata
         _import_timestamp,

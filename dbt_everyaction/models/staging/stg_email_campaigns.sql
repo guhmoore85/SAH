@@ -9,47 +9,46 @@ with source as (
 renamed as (
     select
         -- Identity
-        'Email'                                     as type,
-        cast(campaign_name as string)                as name,
+        'Email'                                              as type,
+        cast(email_name as string)                           as name,
 
         -- Dates
-        cast(date_sent as date)                      as first_date,
-        cast(date_sent as date)                      as last_date,
-        0                                            as days_active,
-        extract(year from cast(date_sent as date))   as year,
-        extract(month from cast(date_sent as date))  as month,
-        format_date('%B', cast(date_sent as date))   as month_name,
+        cast(first_sent_date as date)                        as first_date,
+        cast(last_sent_date as date)                         as last_date,
+        date_diff(
+            cast(last_sent_date as date),
+            cast(first_sent_date as date),
+            day
+        )                                                    as days_active,
+        extract(year from cast(first_sent_date as date))     as year,
+        extract(month from cast(first_sent_date as date))    as month,
+        format_date('%B', cast(first_sent_date as date))     as month_name,
 
-        -- Email metrics
-        cast(recipients as int64)                    as recipients,
-        safe_divide(unique_opens, recipients)        as unique_open_rate,
-        safe_divide(unique_clicks, recipients)       as unique_click_rate,
-        safe_divide(bounces, recipients)             as bounce_rate,
-        safe_divide(unsubscribes, recipients)        as unsubscribe_rate,
+        -- Email metrics (rates are pre-computed in source)
+        cast(recipients as int64)                            as recipients,
+        cast(unique_open_rate as float64)                    as unique_open_rate,
+        cast(unique_click_rate as float64)                   as unique_click_rate,
+        cast(unique_clicks as int64)                         as unique_clicks,
+        cast(bounce_rate as float64)                         as bounce_rate,
+        cast(unsubscribe_rate as float64)                    as unsubscribe_rate,
 
-        -- Contribution metrics
-        cast(total_contributions as int64)           as total_contributions,
-        cast(amount_raised as float64)               as amount_raised,
-        safe_divide(
-            cast(amount_raised as float64),
-            nullif(cast(total_contributions as int64), 0)
-        )                                            as avg_contribution_amount,
-        safe_divide(
-            cast(total_contributions as int64),
-            nullif(cast(recipients as int64), 0)
-        )                                            as conversion_rate,
+        -- Contribution metrics (pre-computed in source)
+        cast(total_contributions as int64)                   as total_contributions,
+        cast(amount_raised as float64)                       as amount_raised,
+        cast(avg_contribution_amount as float64)             as avg_contribution_amount,
+        cast(conversion_rate as float64)                     as conversion_rate,
 
         -- Not applicable to emails
-        cast(null as int64)                          as submissions,
-        cast(null as int64)                          as views,
-        cast(null as string)                         as form_type,
-        cast(null as string)                         as form_status,
-        cast(null as int64)                          as recurring_commitments,
-        cast(null as int64)                          as new_contacts,
+        cast(null as int64)                                  as submissions,
+        cast(null as int64)                                  as views,
+        cast(null as string)                                 as form_type,
+        cast(null as string)                                 as form_status,
+        cast(null as int64)                                  as recurring_commitments,
+        cast(null as int64)                                  as new_contacts,
 
         -- Lists
-        cast(recipient_list as string)               as recipient_list,
-        cast(excluded_list as string)                as excluded_list,
+        cast(recipient_list as string)                       as recipient_list,
+        cast(excluded_list as string)                        as excluded_list,
 
         -- Metadata
         _import_timestamp,

@@ -48,6 +48,8 @@ models:
         description: Unique opens / recipients (null for forms)
       - name: unique_click_rate
         description: Unique clicks / recipients (null for forms)
+      - name: unique_clicks
+        description: Raw unique click count (null for forms)
       - name: bounce_rate
         description: Bounces / recipients (null for forms)
       - name: unsubscribe_rate
