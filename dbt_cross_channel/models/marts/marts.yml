@@ -1,0 +1,106 @@
+version: 2
+
+models:
+  - name: cross_channel_all_items
+    description: >
+      Cross-channel combined table for the executive dashboard.
+      One row per content item: social post, GA4 page/dimension, email campaign, or form.
+      Materialized as a table in social_media dataset.
+      Replaces the manual CREATE OR REPLACE TABLE query previously run in BigQuery.
+    columns:
+      - name: date
+        description: Primary date for the item (sent date for emails, submission date for forms, activity date for social/GA4)
+      - name: channel
+        description: Platform — e.g. Instagram, Facebook, Website, Email, Forms
+      - name: channel_group
+        description: Grouping — Social, Web, EveryAction
+      - name: item_type
+        description: Post, Page, Location, Campaign, Device, Email, or Form
+      - name: item_id
+        description: Post ID for social; null for others
+      - name: item_url
+        description: Post URL for social; constructed stopaapihate.org URL for GA4 pages; null for email/forms
+      - name: item_name
+        description: Post content (truncated 500 chars), GA4 dimension value, email name, or form name
+      - name: content_type
+        description: Social content type or form type; null for GA4/email
+      - name: year
+        description: Calendar year
+      - name: month
+        description: Month number (1-12)
+      - name: month_name
+        description: Month name (January, February, etc.)
+      - name: reach_or_impressions
+        description: Reach for social, users for GA4, recipients for email, views for forms
+      - name: engagement
+        description: Total engagement for social, sessions for GA4, opens (recipients × open_rate) for email, submissions for forms
+      - name: engagement_rate
+        description: Platform-specific rate — social engagement rate, GA4 engagement rate (×100), email open rate, form conversion rate
+      - name: clicks
+        description: Link clicks for social, key events for GA4, clicks (recipients × click_rate) for email; null for forms
+      - name: revenue
+        description: Amount raised — email and forms only; null for social/GA4
+      - name: contributions
+        description: Contribution count — email and forms only; null for social/GA4
+      - name: likes
+        description: Social only
+      - name: comments
+        description: Social only
+      - name: shares
+        description: Social only
+      - name: saves
+        description: Social only
+      - name: video_views
+        description: Social only
+      - name: social_impressions
+        description: Social impressions (distinct from reach); social only
+      - name: new_followers
+        description: Social only
+      - name: total_followers
+        description: Social only
+      - name: avg_watch_time_seconds
+        description: Social video only
+      - name: completion_rate_pct
+        description: Social video only
+      - name: peak_retention_pct
+        description: Social video only
+      - name: website_users
+        description: GA4 only
+      - name: website_new_users
+        description: GA4 only
+      - name: website_sessions
+        description: GA4 only
+      - name: website_engagement_rate
+        description: GA4 only (raw decimal, not ×100)
+      - name: website_key_events
+        description: GA4 only
+      - name: ga4_dimension_type
+        description: GA4 only — Page, Location, Campaign, Device
+      - name: recipients
+        description: Email only
+      - name: open_rate
+        description: Email only
+      - name: click_rate
+        description: Email only
+      - name: bounce_rate
+        description: Email only
+      - name: unsubscribe_rate
+        description: Email only
+      - name: recipient_list
+        description: Email only
+      - name: excluded_list
+        description: Email only
+      - name: form_submissions
+        description: Forms only
+      - name: form_views
+        description: Forms only
+      - name: form_conversion_rate
+        description: Forms only
+      - name: new_contacts
+        description: Forms only
+      - name: recurring_commitments
+        description: Forms only
+      - name: form_type
+        description: Forms only — Petition, Survey, Signup, etc.
+      - name: form_status
+        description: Forms only — Active or Inactive

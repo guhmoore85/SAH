@@ -1,0 +1,28 @@
+cross_channel:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: service-account
+      project: stopaapihate-472516
+      dataset: social_media
+      threads: 4
+      timeout_seconds: 300
+      keyfile: "{{ env_var('GOOGLE_SERVICE_ACCOUNT_FILE', '') }}"
+    prod:
+      type: bigquery
+      method: service-account-json
+      project: stopaapihate-472516
+      dataset: social_media
+      threads: 4
+      timeout_seconds: 300
+      keyfile_json:
+        type: service_account
+        project_id: "{{ env_var('DBT_BQ_PROJECT_ID', '') }}"
+        private_key_id: "{{ env_var('DBT_BQ_PRIVATE_KEY_ID', '') }}"
+        private_key: "{{ env_var('DBT_BQ_PRIVATE_KEY', '') }}"
+        client_email: "{{ env_var('DBT_BQ_CLIENT_EMAIL', '') }}"
+        client_id: "{{ env_var('DBT_BQ_CLIENT_ID', '') }}"
+        auth_uri: https://accounts.google.com/o/oauth2/auth
+        token_uri: https://oauth2.googleapis.com/token
+        client_x509_cert_url: "{{ env_var('DBT_BQ_CERT_URL', '') }}"

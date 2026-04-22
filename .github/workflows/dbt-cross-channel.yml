@@ -1,0 +1,61 @@
+name: dbt Cross-Channel Build
+
+on:
+  schedule:
+    # 7:00 AM UTC daily — after EveryAction (5:45 AM) and GA4 (6:00 AM) refreshes
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+    inputs:
+      full_refresh:
+        description: 'Run with --full-refresh (rebuilds tables from scratch)'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+
+jobs:
+  dbt-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dbt_cross_channel
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dbt
+        run: pip install dbt-core dbt-bigquery
+
+      - name: Write service account key
+        env:
+          DBT_BIGQUERY_KEYFILE_JSON: ${{ secrets.DBT_BIGQUERY_KEYFILE_JSON }}
+        run: |
+          echo "$DBT_BIGQUERY_KEYFILE_JSON" > /tmp/bq-keyfile.json
+          echo "GOOGLE_SERVICE_ACCOUNT_FILE=/tmp/bq-keyfile.json" >> $GITHUB_ENV
+
+      - name: dbt deps
+        run: dbt deps --profiles-dir .
+
+      - name: dbt build
+        run: |
+          if [ "${{ github.event.inputs.full_refresh }}" = "true" ]; then
+            dbt build --profiles-dir . --target prod --full-refresh
+          else
+            dbt build --profiles-dir . --target prod
+          fi
+
+      - name: Upload dbt artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-cross-channel-artifacts
+          path: |
+            dbt_cross_channel/target/manifest.json
+            dbt_cross_channel/target/run_results.json
+          retention-days: 7
