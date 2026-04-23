@@ -50,7 +50,7 @@ combined as (
 )
 
 select
-    _email_date,
+    date(timestamp(_email_date)) as _email_date,
     source_table,
     total_records,
     coalesce(subscribed, 0)                                                                         as subscribed,
