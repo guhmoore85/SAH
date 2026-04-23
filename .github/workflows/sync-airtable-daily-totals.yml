@@ -1,0 +1,77 @@
+name: Sync Daily Totals to Airtable
+
+on:
+  # Run daily at 6:15 AM UTC (after BigQuery/dbt refresh at 5:45-6:00 AM)
+  schedule:
+    - cron: '15 6 * * *'
+
+  # Allow manual trigger from GitHub UI
+  workflow_dispatch:
+    inputs:
+      row_limit:
+        description: 'Limit rows for testing (0 = no limit)'
+        required: false
+        default: '0'
+        type: string
+
+concurrency:
+  group: daily-totals-airtable-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Daily Totals → Airtable sync
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 20
+          max_attempts: 3
+          retry_wait_seconds: 60
+          command: python sync_sheet_to_airtable.py
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          AIRTABLE_PAT: ${{ secrets.AIRTABLE_PAT }}
+          AIRTABLE_BASE_ID: ${{ secrets.EVERYACTION_AIRTABLE_BASE_ID }}
+          AIRTABLE_TABLE_ID: ${{ secrets.DAILY_TOTALS_AIRTABLE_TABLE_ID }}
+          GOOGLE_SHEET_ID: ${{ secrets.EVERYACTION_GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_TAB: dailys
+          SYNC_MODE: upsert
+          SYNC_KEY_FIELDS: _email_date,source_table
+          ROW_LIMIT: ${{ github.event.inputs.row_limit || '0' }}
+
+      - name: Generate sync summary
+        if: always()
+        run: |
+          echo "### Daily Totals → Airtable Sync Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Timestamp | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Row Limit | ${{ github.event.inputs.row_limit || 'None (full sync)' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trigger | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload sync logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-totals-sync-logs-${{ github.run_number }}
+          path: |
+            *.log
+          retention-days: 7
+          if-no-files-found: ignore
