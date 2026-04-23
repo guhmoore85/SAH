@@ -13,6 +13,12 @@ on:
         required: false
         default: '0'
         type: string
+      sync_mode:
+        description: 'Sync mode — use "replace" to wipe and re-insert'
+        required: false
+        default: 'upsert'
+        type: choice
+        options: ['upsert', 'replace']
 
 concurrency:
   group: daily-totals-airtable-sync
@@ -50,7 +56,7 @@ jobs:
           AIRTABLE_TABLE_ID: ${{ secrets.DAILY_TOTALS_AIRTABLE_TABLE_ID }}
           GOOGLE_SHEET_ID: ${{ secrets.EVERYACTION_GOOGLE_SHEET_ID }}
           GOOGLE_SHEET_TAB: dailys
-          SYNC_MODE: upsert
+          SYNC_MODE: ${{ github.event.inputs.sync_mode || 'upsert' }}
           SYNC_KEY_FIELDS: _email_date,source_table
           ROW_LIMIT: ${{ github.event.inputs.row_limit || '0' }}
 
