@@ -23,16 +23,17 @@ Airtable base. These columns come from the BigQuery query in
 | 13 | `recipients` | Number (integer) | Email recipients count |
 | 14 | `unique_open_rate` | Percent | Stored as decimal (0.35 = 35%) |
 | 15 | `unique_click_rate` | Percent | Stored as decimal (0.12 = 12%) |
-| 16 | `bounce_rate` | Percent | Stored as decimal (0.05 = 5%) |
-| 17 | `unsubscribe_rate` | Percent | Stored as decimal (0.01 = 1%) |
-| 18 | `submissions` | Number (integer) | Form submissions count |
-| 19 | `views` | Number (integer) | Form page views |
-| 20 | `form_type` | Single line text | E.g. "Petition", "Survey", "Signup" |
-| 21 | `form_status` | Single line text | E.g. "Active", "Inactive" |
-| 22 | `recurring_commitments` | Number (integer) | Recurring donor commitments |
-| 23 | `new_contacts` | Number (integer) | New contacts acquired |
-| 24 | `recipient_list` | Long text | Names/IDs of recipient lists used |
-| 25 | `excluded_list` | Long text | Names/IDs of excluded lists |
+| 16 | `unique_clicks` | Number (integer) | Raw unique click count (emails only) |
+| 17 | `bounce_rate` | Percent | Stored as decimal (0.05 = 5%) |
+| 18 | `unsubscribe_rate` | Percent | Stored as decimal (0.01 = 1%) |
+| 19 | `submissions` | Number (integer) | Form submissions count |
+| 20 | `views` | Number (integer) | Form page views |
+| 21 | `form_type` | Single line text | E.g. "Petition", "Survey", "Signup" |
+| 22 | `form_status` | Single line text | E.g. "Active", "Inactive" |
+| 23 | `recurring_commitments` | Number (integer) | Recurring donor commitments |
+| 24 | `new_contacts` | Number (integer) | New contacts acquired |
+| 25 | `recipient_list` | Long text | Names/IDs of recipient lists used |
+| 26 | `excluded_list` | Long text | Names/IDs of excluded lists |
 
 ## Auto-Coercion Behavior
 

@@ -9,3 +9,7 @@ google-auth-oauthlib>=1.0.0
 google-auth-httplib2>=0.2.0
 google-cloud-bigquery>=3.13.0
 requests>=2.31.0
+
+# dbt (EveryAction transformations)
+dbt-core>=1.7.0
+dbt-bigquery>=1.7.0

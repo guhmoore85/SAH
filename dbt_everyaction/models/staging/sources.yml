@@ -1,0 +1,42 @@
+version: 2
+
+sources:
+  - name: everyaction_reports
+    database: stopaapihate-472516
+    schema: everyaction_reports
+    description: >
+      Raw EveryAction report tables loaded from Gmail CSV exports
+      via sync_everyaction_gmail.py.
+    tables:
+      - name: email_comparison
+        description: Weekly email campaign comparison report
+      - name: forms_report
+        description: Weekly forms/pages report
+      - name: daily_full_list
+        description: >
+          Daily full list count summary. As of 2026-03-19, stores 1 summary row
+          per day (record_count + subscription_status_counts JSON). Pre-3/19
+          rows are individual contacts with a subscription_status column.
+        columns:
+          - name: record_count
+            description: Total contacts in the list (summary rows only)
+          - name: subscription_status_counts
+            description: JSON string e.g. {"Subscribed":181000,"Unsubscribed":84000}
+      - name: sah_donors
+        description: >
+          Daily SAH donors count summary. Same summary-row format as
+          daily_full_list from 2026-03-19 onwards.
+        columns:
+          - name: record_count
+            description: Total donors in the list
+          - name: subscription_status_counts
+            description: JSON string e.g. {"Subscribed":33000,"Unsubscribed":32000}
+      - name: daily_sah_365
+        description: >
+          Daily SAH 365 list count summary. Same summary-row format as
+          daily_full_list from 2026-03-19 onwards.
+        columns:
+          - name: record_count
+            description: Total contacts in the SAH 365 list
+          - name: subscription_status_counts
+            description: JSON string e.g. {"Subscribed":50000,"Unsubscribed":8000}

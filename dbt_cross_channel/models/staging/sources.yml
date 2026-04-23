@@ -1,0 +1,25 @@
+version: 2
+
+sources:
+  - name: social_media
+    database: stopaapihate-472516
+    schema: social_media
+    tables:
+      - name: combined_metrics_full
+        description: Deduped social media posts across all platforms (Instagram, Facebook, etc.)
+
+  - name: google_analytics_4
+    database: stopaapihate-472516
+    schema: google_analytics_4
+    tables:
+      - name: airtable_active_365d
+        description: GA4 web analytics for the last 365 days — one row per date × dimension value
+
+  - name: everyaction_reports
+    database: stopaapihate-472516
+    schema: everyaction_reports
+    tables:
+      - name: email_comparison
+        description: Raw EveryAction email comparison report; may have multiple snapshots per campaign
+      - name: forms_report
+        description: Raw EveryAction forms report; may have multiple snapshots per form

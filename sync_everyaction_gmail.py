@@ -534,7 +534,7 @@ def _coerce_value(value: str, bq_type: str):
                 continue
         return value
     if bq_type == "DATE":
-        for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y"):
+        for fmt in ("%Y-%m-%d", "%m/%d/%y", "%m/%d/%Y"):
             try:
                 return datetime.strptime(value, fmt).date().isoformat()
             except ValueError:

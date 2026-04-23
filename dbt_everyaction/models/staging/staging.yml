@@ -1,0 +1,48 @@
+version: 2
+
+models:
+  - name: stg_email_campaigns
+    description: >
+      Staged email campaign data from EveryAction's weekly Email Comparison Report.
+      Each row is one email campaign send.
+    columns:
+      - name: type
+        description: Always "Email"
+        tests: [not_null]
+      - name: name
+        description: Campaign name
+        tests: [not_null]
+      - name: first_date
+        description: Date the email was sent
+      - name: recipients
+        description: Number of email recipients
+      - name: unique_open_rate
+        description: Unique opens / recipients (decimal 0-1)
+      - name: unique_click_rate
+        description: Unique clicks / recipients (decimal 0-1)
+      - name: bounce_rate
+        description: Bounces / recipients (decimal 0-1)
+      - name: unsubscribe_rate
+        description: Unsubscribes / recipients (decimal 0-1)
+
+  - name: stg_forms
+    description: >
+      Staged form/page data from EveryAction's weekly Forms Report.
+      Each row is one online form or page.
+    columns:
+      - name: type
+        description: Always "Form"
+        tests: [not_null]
+      - name: name
+        description: Form name
+        tests: [not_null]
+      - name: first_date
+        description: Date the form was created
+      - name: submissions
+        description: Total form submissions
+      - name: views
+        description: Total form page views
+      - name: form_type
+        description: "E.g. Petition, Survey, Signup, Donation"
+      - name: form_status
+        description: "E.g. Active, Inactive"
