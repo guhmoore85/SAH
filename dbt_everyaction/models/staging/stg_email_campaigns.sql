@@ -12,17 +12,45 @@ renamed as (
         'Email'                                              as type,
         cast(email_name as string)                           as name,
 
-        -- Dates
-        cast(first_sent_date as date)                        as first_date,
-        cast(last_sent_date as date)                         as last_date,
+        -- Dates (source may store as STRING in M/D/YY format)
+        coalesce(
+            safe.parse_date('%m/%d/%y', cast(first_sent_date as string)),
+            safe.parse_date('%m/%d/%Y', cast(first_sent_date as string)),
+            safe_cast(first_sent_date as date)
+        )                                                    as first_date,
+        coalesce(
+            safe.parse_date('%m/%d/%y', cast(last_sent_date as string)),
+            safe.parse_date('%m/%d/%Y', cast(last_sent_date as string)),
+            safe_cast(last_sent_date as date)
+        )                                                    as last_date,
         date_diff(
-            cast(last_sent_date as date),
-            cast(first_sent_date as date),
+            coalesce(
+                safe.parse_date('%m/%d/%y', cast(last_sent_date as string)),
+                safe.parse_date('%m/%d/%Y', cast(last_sent_date as string)),
+                safe_cast(last_sent_date as date)
+            ),
+            coalesce(
+                safe.parse_date('%m/%d/%y', cast(first_sent_date as string)),
+                safe.parse_date('%m/%d/%Y', cast(first_sent_date as string)),
+                safe_cast(first_sent_date as date)
+            ),
             day
         )                                                    as days_active,
-        extract(year from cast(first_sent_date as date))     as year,
-        extract(month from cast(first_sent_date as date))    as month,
-        format_date('%B', cast(first_sent_date as date))     as month_name,
+        extract(year from coalesce(
+            safe.parse_date('%m/%d/%y', cast(first_sent_date as string)),
+            safe.parse_date('%m/%d/%Y', cast(first_sent_date as string)),
+            safe_cast(first_sent_date as date)
+        ))                                                   as year,
+        extract(month from coalesce(
+            safe.parse_date('%m/%d/%y', cast(first_sent_date as string)),
+            safe.parse_date('%m/%d/%Y', cast(first_sent_date as string)),
+            safe_cast(first_sent_date as date)
+        ))                                                   as month,
+        format_date('%B', coalesce(
+            safe.parse_date('%m/%d/%y', cast(first_sent_date as string)),
+            safe.parse_date('%m/%d/%Y', cast(first_sent_date as string)),
+            safe_cast(first_sent_date as date)
+        ))                                                   as month_name,
 
         -- Email metrics (rates are pre-computed in source)
         cast(recipients as int64)                            as recipients,
