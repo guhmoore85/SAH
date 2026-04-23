@@ -6,6 +6,15 @@ with source as (
     select * from {{ source('everyaction_reports', 'email_comparison') }}
 ),
 
+deduped as (
+    select *,
+        row_number() over (
+            partition by email_name
+            order by _import_timestamp desc
+        ) as rn
+    from source
+),
+
 renamed as (
     select
         -- Identity
@@ -81,7 +90,8 @@ renamed as (
         _import_timestamp,
         _source_filename
 
-    from source
+    from deduped
+    where rn = 1
 )
 
 select * from renamed
