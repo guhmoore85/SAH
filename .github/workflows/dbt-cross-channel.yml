@@ -34,9 +34,9 @@ jobs:
 
       - name: Write service account key
         env:
-          DBT_BIGQUERY_KEYFILE_JSON: ${{ secrets.DBT_BIGQUERY_KEYFILE_JSON }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: |
-          echo "$DBT_BIGQUERY_KEYFILE_JSON" > /tmp/bq-keyfile.json
+          echo "$GOOGLE_SERVICE_ACCOUNT_JSON" > /tmp/bq-keyfile.json
           echo "GOOGLE_SERVICE_ACCOUNT_FILE=/tmp/bq-keyfile.json" >> $GITHUB_ENV
 
       - name: dbt deps
