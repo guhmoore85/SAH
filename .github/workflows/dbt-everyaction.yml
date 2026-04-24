@@ -42,6 +42,13 @@ jobs:
       - name: Install dependencies
         run: pip install dbt-core dbt-bigquery
 
+      - name: Write service account key
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          echo "$GOOGLE_SERVICE_ACCOUNT_JSON" > /tmp/bq-keyfile.json
+          echo "GOOGLE_SERVICE_ACCOUNT_FILE=/tmp/bq-keyfile.json" >> $GITHUB_ENV
+
       - name: Run dbt deps
         run: dbt deps --profiles-dir .
 
@@ -52,14 +59,10 @@ jobs:
             REFRESH_FLAG="--full-refresh"
           fi
           dbt build --profiles-dir . $REFRESH_FLAG
-        env:
-          DBT_BIGQUERY_KEYFILE_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
 
       - name: Generate dbt docs
         if: success()
         run: dbt docs generate --profiles-dir .
-        env:
-          DBT_BIGQUERY_KEYFILE_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
 
       - name: Upload dbt artifacts
         if: always()
