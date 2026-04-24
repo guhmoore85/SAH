@@ -45,9 +45,9 @@ jobs:
       - name: dbt build
         run: |
           if [ "${{ github.event.inputs.full_refresh }}" = "true" ]; then
-            dbt build --profiles-dir . --target prod --full-refresh
+            dbt build --profiles-dir . --target dev --full-refresh
           else
-            dbt build --profiles-dir . --target prod
+            dbt build --profiles-dir . --target dev
           fi
 
       - name: Upload dbt artifacts
