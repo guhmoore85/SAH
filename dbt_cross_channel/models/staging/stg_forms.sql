@@ -4,7 +4,7 @@ with deduped as (
     select *,
         row_number() over (
             partition by form_name
-            order by _import_timestamp desc
+            order by _fivetran_synced desc
         ) as rn
     from {{ source('everyaction_reports', 'forms_report') }}
     where last_submission_date is not null

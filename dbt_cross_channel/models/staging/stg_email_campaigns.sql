@@ -5,7 +5,7 @@ with deduped as (
     select *,
         row_number() over (
             partition by email_name
-            order by _import_timestamp desc
+            order by _fivetran_synced desc
         ) as rn
     from {{ source('everyaction_reports', 'email_comparison') }}
     where last_sent_date is not null
@@ -31,13 +31,13 @@ select
     safe_cast(recipients as int64)              as reach_or_impressions,
     cast(
         coalesce(safe_cast(recipients as float64), 0)
-        * coalesce(unique_open_rate, 0)
+        * coalesce(unique_open_rate, 0) / 100.0
         as int64
     )                                           as engagement,
     unique_open_rate                            as engagement_rate,
     cast(
         coalesce(safe_cast(recipients as float64), 0)
-        * coalesce(unique_click_rate, 0)
+        * coalesce(unique_click_rate, 0) / 100.0
         as int64
     )                                           as clicks,
     coalesce(amount_raised, 0)                  as revenue,
