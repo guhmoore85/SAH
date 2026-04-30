@@ -67,6 +67,7 @@ renamed as (
         cast(form_type as string)                                 as form_type,
         cast(form_status as string)                               as form_status,
         cast(conversion_rate as float64)                          as conversion_rate,
+        cast(conversion_rate as float64)                          as engagement_rate,
 
         -- Contribution metrics (pre-computed in source)
         cast(number_of_contributions as int64)                    as total_contributions,

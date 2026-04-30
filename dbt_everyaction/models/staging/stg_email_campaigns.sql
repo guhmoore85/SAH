@@ -73,6 +73,7 @@ renamed as (
         cast(amount_raised as float64)                       as amount_raised,
         cast(avg_contribution_amount as float64)             as avg_contribution_amount,
         cast(conversion_rate as float64)                     as conversion_rate,
+        round(cast(unique_open_rate as float64) + cast(unique_click_rate as float64), 4) as engagement_rate,
 
         -- Not applicable to emails
         cast(null as int64)                                  as submissions,
