@@ -8,6 +8,20 @@ sources:
       - name: combined_metrics_full
         description: Deduped social media posts across all platforms (Instagram, Facebook, etc.)
 
+  - name: fivetran_facebook
+    database: stopaapihate-472516
+    schema: social_media_reporting_facebook_pages
+    tables:
+      - name: facebook_pages__posts_report
+        description: Fivetran-managed Facebook page post metrics
+
+  - name: fivetran_instagram
+    database: stopaapihate-472516
+    schema: social_media_reporting_instagram_business
+    tables:
+      - name: instagram_business__posts
+        description: Fivetran-managed Instagram business post metrics
+
   - name: google_analytics_4
     database: stopaapihate-472516
     schema: google_analytics_4

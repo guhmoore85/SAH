@@ -64,5 +64,5 @@ select
     cast(null as string)            as form_type,
     cast(null as string)            as form_status
 
-from {{ source('social_media', 'combined_metrics_full') }}
+from {{ ref('combined_metrics_full') }}
 where date is not null
