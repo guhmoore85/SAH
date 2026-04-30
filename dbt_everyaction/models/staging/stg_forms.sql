@@ -6,6 +6,15 @@ with source as (
     select * from {{ source('everyaction_reports', 'forms_report') }}
 ),
 
+deduped as (
+    select *,
+        row_number() over (
+            partition by form_name
+            order by _import_timestamp desc
+        ) as rn
+    from source
+),
+
 renamed as (
     select
         -- Identity
@@ -58,6 +67,7 @@ renamed as (
         cast(form_type as string)                                 as form_type,
         cast(form_status as string)                               as form_status,
         cast(conversion_rate as float64)                          as conversion_rate,
+        cast(conversion_rate as float64)                          as engagement_rate,
 
         -- Contribution metrics (pre-computed in source)
         cast(number_of_contributions as int64)                    as total_contributions,
@@ -79,7 +89,8 @@ renamed as (
         _import_timestamp,
         _source_filename
 
-    from source
+    from deduped
+    where rn = 1
 )
 
 select * from renamed

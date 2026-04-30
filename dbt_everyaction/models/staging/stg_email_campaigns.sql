@@ -6,6 +6,15 @@ with source as (
     select * from {{ source('everyaction_reports', 'email_comparison') }}
 ),
 
+deduped as (
+    select *,
+        row_number() over (
+            partition by email_name
+            order by _import_timestamp desc
+        ) as rn
+    from source
+),
+
 renamed as (
     select
         -- Identity
@@ -64,6 +73,7 @@ renamed as (
         cast(amount_raised as float64)                       as amount_raised,
         cast(avg_contribution_amount as float64)             as avg_contribution_amount,
         cast(conversion_rate as float64)                     as conversion_rate,
+        round(cast(unique_open_rate as float64) + cast(unique_click_rate as float64), 4) as engagement_rate,
 
         -- Not applicable to emails
         cast(null as int64)                                  as submissions,
@@ -81,7 +91,8 @@ renamed as (
         _import_timestamp,
         _source_filename
 
-    from source
+    from deduped
+    where rn = 1
 )
 
 select * from renamed

@@ -36,6 +36,11 @@ models:
           For emails: contributions / recipients.
           For forms: submissions / views.
           Stored as decimal (0.452 = 45.2%).
+      - name: engagement_rate
+        description: >
+          For emails: unique_open_rate + unique_click_rate.
+          For forms: same as conversion_rate (submissions / views).
+          Stored as decimal.
       - name: total_contributions
         description: Count of contributions
       - name: amount_raised
