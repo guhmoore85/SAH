@@ -118,6 +118,18 @@ def get_airtable_table():
     return api.table(AIRTABLE_BASE_ID, AIRTABLE_TABLE_ID)
 
 
+def get_airtable_field_names(table) -> set[str]:
+    """Fetch the set of valid field names from the Airtable table schema."""
+    try:
+        schema = table.schema()
+        names = {f.name for f in schema.fields}
+        logger.info("Airtable table has %d fields", len(names))
+        return names
+    except Exception as e:
+        logger.warning("Could not fetch Airtable schema: %s — skipping field filtering", e)
+        return set()
+
+
 # ---------------------------------------------------------------------------
 # Retry helper
 # ---------------------------------------------------------------------------
@@ -452,6 +464,17 @@ def sync() -> dict[str, Any]:
 
         if not records:
             raise ValueError("No valid records to sync")
+
+        # Filter out fields that don't exist in Airtable
+        valid_fields = get_airtable_field_names(airtable_table)
+        if valid_fields:
+            all_sheet_fields = set()
+            for r in records:
+                all_sheet_fields.update(r.keys())
+            extra = all_sheet_fields - valid_fields
+            if extra:
+                logger.warning("Dropping fields not in Airtable: %s", ", ".join(sorted(extra)))
+                records = [{k: v for k, v in r.items() if k in valid_fields} for r in records]
 
         if SYNC_MODE == "upsert":
             result = upsert_records(airtable_table, records, SYNC_KEY_FIELDS)
