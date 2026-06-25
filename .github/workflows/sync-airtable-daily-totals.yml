@@ -43,12 +43,8 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run Daily Totals → Airtable sync
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 20
-          max_attempts: 3
-          retry_wait_seconds: 60
-          command: python sync_sheet_to_airtable.py
+        timeout-minutes: 20
+        run: python sync_sheet_to_airtable.py
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           AIRTABLE_PAT: ${{ secrets.AIRTABLE_PAT }}

@@ -49,6 +49,7 @@ jobs:
           GOOGLE_SHEET_TAB: everyaction_master
           SYNC_MODE: upsert
           SYNC_KEY_FIELDS: type,name
+          EXCLUDE_FIELDS: engagement_rate
           ROW_LIMIT: ${{ github.event.inputs.row_limit || '0' }}
 
       - name: Generate sync summary

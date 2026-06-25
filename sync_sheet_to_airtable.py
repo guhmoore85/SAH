@@ -53,6 +53,7 @@ AIRTABLE_PAT = os.getenv("AIRTABLE_PAT")
 
 SYNC_MODE = os.getenv("SYNC_MODE", "upsert").lower()  # "upsert" or "replace"
 SYNC_KEY_FIELDS = [f.strip() for f in os.getenv("SYNC_KEY_FIELDS", "").split(",") if f.strip()]
+EXCLUDE_FIELDS = {f.strip() for f in os.getenv("EXCLUDE_FIELDS", "").split(",") if f.strip()}
 
 ROW_LIMIT = int(os.getenv("ROW_LIMIT", 0)) or None
 
@@ -467,14 +468,15 @@ def sync() -> dict[str, Any]:
 
         # Filter out fields that don't exist in Airtable
         valid_fields = get_airtable_field_names(airtable_table)
+        drop_fields = set(EXCLUDE_FIELDS)
         if valid_fields:
             all_sheet_fields = set()
             for r in records:
                 all_sheet_fields.update(r.keys())
-            extra = all_sheet_fields - valid_fields
-            if extra:
-                logger.warning("Dropping fields not in Airtable: %s", ", ".join(sorted(extra)))
-                records = [{k: v for k, v in r.items() if k in valid_fields} for r in records]
+            drop_fields |= all_sheet_fields - valid_fields
+        if drop_fields:
+            logger.warning("Dropping fields: %s", ", ".join(sorted(drop_fields)))
+            records = [{k: v for k, v in r.items() if k not in drop_fields} for r in records]
 
         if SYNC_MODE == "upsert":
             result = upsert_records(airtable_table, records, SYNC_KEY_FIELDS)
