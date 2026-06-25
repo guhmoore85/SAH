@@ -13,6 +13,12 @@ on:
         required: false
         default: '0'
         type: string
+      sync_mode:
+        description: 'Sync mode — use "replace" to wipe and re-insert'
+        required: false
+        default: 'upsert'
+        type: choice
+        options: ['upsert', 'replace']
 
 # Prevent overlapping sync runs
 concurrency:
@@ -47,7 +53,7 @@ jobs:
           AIRTABLE_TABLE_ID: ${{ secrets.EVERYACTION_AIRTABLE_TABLE_ID }}
           GOOGLE_SHEET_ID: ${{ secrets.EVERYACTION_GOOGLE_SHEET_ID }}
           GOOGLE_SHEET_TAB: everyaction_master
-          SYNC_MODE: upsert
+          SYNC_MODE: ${{ github.event.inputs.sync_mode || 'upsert' }}
           SYNC_KEY_FIELDS: type,name
           ROW_LIMIT: ${{ github.event.inputs.row_limit || '0' }}
 
