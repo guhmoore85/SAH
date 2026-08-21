@@ -19,7 +19,7 @@ renamed as (
     select
         -- Identity
         'Email'                                              as type,
-        cast(email_name as string)                           as name,
+        coalesce(cast(email_name as string), '(Unnamed Email)') as name,
 
         -- Dates (source may store as STRING in M/D/YY format)
         coalesce(
