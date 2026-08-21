@@ -19,7 +19,7 @@ renamed as (
     select
         -- Identity
         'Form'                                                    as type,
-        cast(form_name as string)                                 as name,
+        coalesce(cast(form_name as string), '(Unnamed Form)')     as name,
 
         -- Dates (source may store as STRING in M/D/YY format)
         coalesce(
