@@ -46,6 +46,7 @@ jobs:
           BQ_PROJECT: "stopaapihate-472516"
           BQ_DATASET: "everyaction_reports"
         run: |
+          set -o pipefail
           python sync_everyaction_gmail.py --mode ${{ github.event.inputs.mode || 'daily' }} 2>&1 | tee sync_daily.log
 
       - name: Upload sync log
