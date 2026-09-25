@@ -15,7 +15,10 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # combined_metrics_full has ~97k rows; at 10 records/batch with a
+    # rate-limit-friendly sleep between batches, a full initial load can
+    # take over an hour. 20 minutes was killing the job mid-run.
+    timeout-minutes: 180
 
     steps:
       - name: Checkout repository
