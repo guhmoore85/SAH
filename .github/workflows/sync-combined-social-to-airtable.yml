@@ -34,7 +34,7 @@ jobs:
         run: python sync_combined_social_to_airtable.py
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-          BQ_PROJECT: ${{ secrets.BQ_PROJECT }}
+          BQ_PROJECT: "stopaapihate-472516"
           # Reuses the existing AIRTABLE_PAT secret. If it wasn't granted
           # access to base appEYxbed1rP9wyUq (SAH_Social_2026), this will
           # fail with a permission/not-found error -- grant that PAT access
