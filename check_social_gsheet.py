@@ -25,7 +25,7 @@ SHEET_ID = os.getenv("SOCIAL_GOOGLE_SHEET_ID", "1h2t_g0pUGsH-GhALjeXLSvzm_yu2Q9e
 TARGET_GID = os.getenv("SOCIAL_GOOGLE_SHEET_GID", "301738696")
 
 
-def get_client() -> gspread.Client:
+def get_client() -> tuple[gspread.Client, str]:
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets.readonly",
         "https://www.googleapis.com/auth/drive.readonly",
@@ -34,21 +34,30 @@ def get_client() -> gspread.Client:
     if json_creds:
         creds_dict = json.loads(json_creds)
         credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-        return gspread.authorize(credentials)
+        return gspread.authorize(credentials), creds_dict.get("client_email", "unknown")
 
     creds_file = os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE")
     if creds_file:
         credentials = Credentials.from_service_account_file(creds_file, scopes=scopes)
-        return gspread.authorize(credentials)
+        with open(creds_file) as f:
+            client_email = json.load(f).get("client_email", "unknown")
+        return gspread.authorize(credentials), client_email
 
     raise RuntimeError("Set GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_SERVICE_ACCOUNT_FILE")
 
 
 def main() -> None:
-    client = get_client()
+    client, client_email = get_client()
+    print(f"Service account: {client_email}")
 
     print(f"Opening sheet: {SHEET_ID}")
-    sheet = client.open_by_key(SHEET_ID)
+    try:
+        sheet = client.open_by_key(SHEET_ID)
+    except PermissionError:
+        print()
+        print("PERMISSION DENIED. Share this sheet (Editor or Viewer) with:")
+        print(f"  {client_email}")
+        raise
     print(f"Title: {sheet.title}")
     print()
 
