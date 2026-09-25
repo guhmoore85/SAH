@@ -303,8 +303,12 @@ def delete_all_records(table) -> int:
     return deleted
 
 
-def create_records_batch(table, records: list[dict]) -> int:
-    """Create records in Airtable in batches with rate-limit sleeps."""
+def create_records_batch(table, records: list[dict], typecast: bool = False) -> int:
+    """Create records in Airtable in batches with rate-limit sleeps.
+
+    typecast=True lets Airtable auto-convert cell values and auto-add
+    missing single/multi-select options instead of rejecting the write.
+    """
     total = len(records)
     created = 0
 
@@ -312,7 +316,7 @@ def create_records_batch(table, records: list[dict]) -> int:
 
     for i in range(0, total, BATCH_SIZE):
         batch = records[i : i + BATCH_SIZE]
-        retry_operation(table.batch_create, batch)
+        retry_operation(table.batch_create, batch, typecast=typecast)
         created += len(batch)
 
         if created % 100 == 0 or created == total:
@@ -323,8 +327,11 @@ def create_records_batch(table, records: list[dict]) -> int:
     return created
 
 
-def upsert_records(table, new_records: list[dict], key_fields: list[str]) -> dict:
+def upsert_records(table, new_records: list[dict], key_fields: list[str], typecast: bool = False) -> dict:
     """Upsert: update existing records that match on key_fields, insert new ones.
+
+    typecast=True lets Airtable auto-convert cell values and auto-add
+    missing single/multi-select options instead of rejecting the write.
 
     Returns dict with counts: created, updated, skipped (unchanged).
     """
@@ -371,7 +378,7 @@ def upsert_records(table, new_records: list[dict], key_fields: list[str]) -> dic
     created = 0
     for i in range(0, len(to_create), BATCH_SIZE):
         batch = to_create[i : i + BATCH_SIZE]
-        retry_operation(table.batch_create, batch)
+        retry_operation(table.batch_create, batch, typecast=typecast)
         created += len(batch)
         if created % 100 == 0 or created == len(to_create):
             logger.info("Created %d/%d new records", created, len(to_create))
@@ -381,7 +388,7 @@ def upsert_records(table, new_records: list[dict], key_fields: list[str]) -> dic
     updated = 0
     for i in range(0, len(to_update), BATCH_SIZE):
         batch = to_update[i : i + BATCH_SIZE]
-        retry_operation(table.batch_update, batch)
+        retry_operation(table.batch_update, batch, typecast=typecast)
         updated += len(batch)
         if updated % 100 == 0 or updated == len(to_update):
             logger.info("Updated %d/%d existing records", updated, len(to_update))
