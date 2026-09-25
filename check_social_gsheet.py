@@ -67,10 +67,26 @@ def main() -> None:
     target_ws = None
     for ws in sheet.worksheets():
         marker = " <-- target gid" if str(ws.id) == str(TARGET_GID) else ""
-        print(f"  gid={ws.id}  '{ws.title}'  ({ws.row_count} rows x {ws.col_count} cols){marker}")
+        print(f"  gid={ws.id}  {ws.title!r}  ({ws.row_count} rows x {ws.col_count} cols){marker}")
         if str(ws.id) == str(TARGET_GID):
             target_ws = ws
     print()
+
+    if target_ws is not None:
+        print("=" * 70)
+        print(f"Raw sheet properties for gid={TARGET_GID}")
+        print("=" * 70)
+        raw_meta = sheet.fetch_sheet_metadata()
+        for s in raw_meta.get("sheets", []):
+            props = s.get("properties", {})
+            if str(props.get("sheetId")) == str(TARGET_GID):
+                print(f"  properties: {props}")
+                if "dataSourceSheetProperties" in s:
+                    print(f"  ** THIS IS A DATA SOURCE (Connected) SHEET **")
+                    print(f"  dataSourceSheetProperties: {s['dataSourceSheetProperties']}")
+                else:
+                    print("  Not a dataSourceSheetProperties-backed sheet (plain grid sheet)")
+        print()
 
     if target_ws is None:
         print(f"No tab found with gid={TARGET_GID}")
