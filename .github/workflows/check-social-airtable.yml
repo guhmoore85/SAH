@@ -1,0 +1,32 @@
+name: Check Social Airtable Base
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Airtable base check
+        run: python check_social_airtable.py
+        env:
+          # Reuses the existing AIRTABLE_PAT secret. If it wasn't granted
+          # access to base appEYxbed1rP9wyUq, this will fail with a
+          # permission/not-found error -- either grant that PAT access to
+          # this base in Airtable's token settings, or add a separate
+          # SOCIAL_AIRTABLE_PAT secret instead.
+          AIRTABLE_PAT: ${{ secrets.AIRTABLE_PAT }}
