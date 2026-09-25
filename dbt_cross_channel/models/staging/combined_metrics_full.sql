@@ -75,7 +75,10 @@ instagram as (
         cast(null as bool)                              as is_most_recent_record,
         source_relation
 
-    from {{ source('fivetran_instagram', 'instagram_business__posts') }}
+    -- Was sourced from Fivetran's own instagram_business__posts transformation,
+    -- which is stuck ~5 months behind; stg_instagram_raw builds the same shape
+    -- directly from the raw (and current) synced tables instead.
+    from {{ ref('stg_instagram_raw') }}
 ),
 
 unioned as (
