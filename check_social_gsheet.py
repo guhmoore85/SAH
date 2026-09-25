@@ -79,9 +79,10 @@ def main() -> None:
     print("=" * 70)
     print(f"Header row + first 3 data rows of '{target_ws.title}'")
     print("=" * 70)
-    values = target_ws.get_values("A1:Z4")
-    for row in values:
-        print(f"  {row}")
+    all_values = target_ws.get_all_values()
+    for row in all_values[:4]:
+        print(f"  {row[:26]}")
+    print(f"  ... ({len(all_values)} total rows)")
 
 
 if __name__ == "__main__":
