@@ -67,7 +67,7 @@ SYNC_MODE = os.getenv("SYNC_MODE", "upsert").lower()
 SYNC_KEY_FIELDS = [
     f.strip() for f in os.getenv("SYNC_KEY_FIELDS", "platform,post_id").split(",") if f.strip()
 ]
-ROW_LIMIT = int(os.getenv("ROW_LIMIT", 0)) or None
+ROW_LIMIT = int(os.getenv("ROW_LIMIT") or 0) or None
 
 logging.basicConfig(
     level=logging.INFO,
