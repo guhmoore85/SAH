@@ -73,6 +73,64 @@ QUERIES = {
     """,
 }
 
+# Raw, pre-transformation Fivetran-synced tables -- unprefixed schema matching
+# the connector name (confirmed via instagram_business.user_lifetime_insights,
+# which is current as of today). Checks both whatever business-date column
+# exists and Fivetran's own _fivetran_synced column, since a table can have
+# _fivetran_synced advancing daily while the business date it's syncing stays
+# frozen (API returning stale/limited data) -- those are different root causes.
+RAW_TABLES = [
+    ("instagram_business", "media_history"),
+    ("facebook_pages", "post_history"),
+]
+
+
+def check_raw_table(client: bigquery.Client, dataset: str, table: str) -> None:
+    full_id = f"{PROJECT}.{dataset}.{table}"
+    print("=" * 70)
+    print(f"RAW: {dataset}.{table}")
+    print("=" * 70)
+
+    try:
+        cols = list(
+            client.query(f"""
+                SELECT column_name, data_type
+                FROM `{PROJECT}.{dataset}.INFORMATION_SCHEMA.COLUMNS`
+                WHERE table_name = '{table}'
+            """).result()
+        )
+    except Exception as e:
+        print(f"  ERROR listing columns: {e}")
+        print()
+        return
+
+    if not cols:
+        print(f"  Table not found: {full_id}")
+        print()
+        return
+
+    date_col = None
+    for c in cols:
+        name_lower = c.column_name.lower()
+        if c.data_type in ("TIMESTAMP", "DATE", "DATETIME") and "_fivetran" not in name_lower:
+            date_col = c.column_name
+            break
+
+    select_parts = ["COUNT(*) AS row_count", "MAX(_fivetran_synced) AS max_fivetran_synced"]
+    if date_col:
+        select_parts.insert(0, f"MAX({date_col}) AS max_{date_col}")
+    else:
+        print("  (no obvious business-date column found; showing _fivetran_synced only)")
+
+    sql = f"SELECT {', '.join(select_parts)} FROM `{full_id}`"
+    try:
+        rows = list(client.query(sql).result())
+        for row in rows:
+            print(f"  {dict(row)}")
+    except Exception as e:
+        print(f"  ERROR: {e}")
+    print()
+
 
 def main() -> None:
     client = get_client()
@@ -90,6 +148,9 @@ def main() -> None:
         except Exception as e:
             print(f"  ERROR: {e}")
         print()
+
+    for dataset, table in RAW_TABLES:
+        check_raw_table(client, dataset, table)
 
 
 if __name__ == "__main__":
