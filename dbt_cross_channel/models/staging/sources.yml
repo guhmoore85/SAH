@@ -20,7 +20,21 @@ sources:
     schema: social_media_reporting_instagram_business
     tables:
       - name: instagram_business__posts
-        description: Fivetran-managed Instagram business post metrics
+        description: >
+          Fivetran-managed Instagram business post metrics. NOT currently
+          used -- this transformation has been stuck ~5 months behind since
+          spring 2026 despite the raw synced tables (instagram_business
+          source below) being current. Use stg_instagram_raw instead until
+          Fivetran's transformation is fixed.
+
+  - name: instagram_business
+    database: stopaapihate-472516
+    schema: instagram_business
+    tables:
+      - name: media_history
+        description: Raw Fivetran-synced Instagram media (posts, reels, carousels, stories)
+      - name: media_insights
+        description: Raw Fivetran-synced per-media Instagram insights (likes, views, impressions, etc.)
 
   - name: google_analytics_4
     database: stopaapihate-472516
