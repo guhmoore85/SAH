@@ -81,10 +81,50 @@ instagram as (
     from {{ ref('stg_instagram_raw') }}
 ),
 
+tiktok as (
+    select
+        cast(timestamp_seconds(create_time) as date)    as date,
+        'TikTok'                                        as platform,
+        'Video'                                         as content_type,
+        regexp_extract(share_url, r'@([^/]+)/video')    as account_name,
+        regexp_extract(share_url, r'@([^/]+)/video')    as page_id,
+        cast(id as string)                              as post_id,
+        caption                                         as content,
+        share_url                                       as post_url,
+        cast(timestamp_seconds(create_time) as date)    as post_created_at,
+
+        -- Engagement metrics
+        cast(likes as int64)                            as likes,
+        cast(coalesce(website_clicks, 0) + coalesce(app_download_clicks, 0)
+            + coalesce(email_clicks, 0) + coalesce(phone_number_clicks, 0)
+            + coalesce(address_clicks, 0) as int64)     as clicks,
+        cast(comments as int64)                         as comments,
+        cast(shares as int64)                           as shares,
+        cast(favorites as int64)                        as saves,
+        cast(reach as int64)                            as impressions,
+        cast(null as int64)                             as reach,
+        cast(null as int64)                             as media_views,
+        cast(video_views as int64)                      as video_views,
+
+        -- Video specific
+        cast(average_time_watched as float64)           as video_avg_time_watched,
+        cast(total_time_watched as float64)             as video_view_time,
+        cast(null as int64)                             as video_views_10s,
+        cast(null as int64)                             as video_views_15s,
+
+        cast(null as bool)                              as is_most_recent_record,
+        cast(null as string)                            as source_relation
+
+    from {{ source('tiktok_organic_app', 'video') }}
+    where coalesce(_fivetran_deleted, false) = false
+),
+
 unioned as (
     select * from facebook
     union all
     select * from instagram
+    union all
+    select * from tiktok
 ),
 
 enriched as (
