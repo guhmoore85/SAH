@@ -49,13 +49,21 @@ def get_client() -> bigquery.Client:
 
 
 QUERIES = {
-    "fivetran_facebook.facebook_pages__posts_report (raw source)": f"""
+    "OLD: social_media_reporting_facebook_pages.facebook_pages__posts_report (sources.yml today)": f"""
         SELECT MAX(date_day) AS max_date, COUNT(*) AS row_count
         FROM `{PROJECT}.social_media_reporting_facebook_pages.facebook_pages__posts_report`
     """,
-    "fivetran_instagram.instagram_business__posts (raw source)": f"""
+    "OLD: social_media_reporting_instagram_business.instagram_business__posts (sources.yml today)": f"""
         SELECT MAX(created_timestamp) AS max_date, COUNT(*) AS row_count
         FROM `{PROJECT}.social_media_reporting_instagram_business.instagram_business__posts`
+    """,
+    "NEW: facebook_pages_facebook_pages.facebook_pages__posts_report (from the 2026-09-25 dbt run)": f"""
+        SELECT MAX(date_day) AS max_date, COUNT(*) AS row_count
+        FROM `{PROJECT}.facebook_pages_facebook_pages.facebook_pages__posts_report`
+    """,
+    "NEW: social_media_reporting_staging.instagram_business__posts (from the 2026-09-25 dbt run)": f"""
+        SELECT MAX(created_timestamp) AS max_date, COUNT(*) AS row_count
+        FROM `{PROJECT}.social_media_reporting_staging.instagram_business__posts`
     """,
     "social_media.combined_metrics_full, by platform (dbt-rebuilt output)": f"""
         SELECT platform, MAX(date) AS max_date, COUNT(*) AS row_count
