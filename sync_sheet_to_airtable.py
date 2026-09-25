@@ -55,7 +55,7 @@ SYNC_MODE = os.getenv("SYNC_MODE", "upsert").lower()  # "upsert" or "replace"
 SYNC_KEY_FIELDS = [f.strip() for f in os.getenv("SYNC_KEY_FIELDS", "").split(",") if f.strip()]
 EXCLUDE_FIELDS = {f.strip() for f in os.getenv("EXCLUDE_FIELDS", "").split(",") if f.strip()}
 
-ROW_LIMIT = int(os.getenv("ROW_LIMIT", 0)) or None
+ROW_LIMIT = int(os.getenv("ROW_LIMIT") or 0) or None
 
 # Airtable API limit is 10 records per batch request
 BATCH_SIZE = 10
