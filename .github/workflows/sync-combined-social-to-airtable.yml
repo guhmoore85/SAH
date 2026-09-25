@@ -1,0 +1,44 @@
+name: Sync Combined Social to Airtable
+
+on:
+  workflow_dispatch:
+    inputs:
+      sync_mode:
+        description: 'upsert (default, safe) or replace (delete-and-recreate)'
+        required: false
+        default: 'upsert'
+      row_limit:
+        description: 'Optional row limit for a test run (leave blank for all rows)'
+        required: false
+        default: ''
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Sync BigQuery combined_metrics_full -> Airtable Combined_social
+        run: python sync_combined_social_to_airtable.py
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          BQ_PROJECT: ${{ secrets.BQ_PROJECT }}
+          # Reuses the existing AIRTABLE_PAT secret. If it wasn't granted
+          # access to base appEYxbed1rP9wyUq (SAH_Social_2026), this will
+          # fail with a permission/not-found error -- grant that PAT access
+          # to this base in Airtable's token settings first.
+          AIRTABLE_PAT: ${{ secrets.AIRTABLE_PAT }}
+          SYNC_MODE: ${{ inputs.sync_mode }}
+          ROW_LIMIT: ${{ inputs.row_limit }}
