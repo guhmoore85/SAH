@@ -163,14 +163,18 @@ def sync() -> dict[str, Any]:
                 logger.warning("Dropping fields not present in Airtable: %s", ", ".join(sorted(drop_fields)))
                 records = [{k: v for k, v in r.items() if k not in drop_fields} for r in records]
 
+        # BigQuery source data can carry values (e.g. content_type values
+        # like "Image") that don't yet exist as options on Airtable's
+        # single/multi-select fields. typecast=True lets Airtable add them
+        # automatically instead of rejecting the write.
         if SYNC_MODE == "upsert":
-            result = upsert_records(airtable_table, records, SYNC_KEY_FIELDS)
+            result = upsert_records(airtable_table, records, SYNC_KEY_FIELDS, typecast=True)
             stats["records_created"] = result["created"]
             stats["records_updated"] = result["updated"]
             stats["records_skipped"] = result["skipped"]
         else:
             stats["records_deleted"] = delete_all_records(airtable_table)
-            stats["records_created"] = create_records_batch(airtable_table, records)
+            stats["records_created"] = create_records_batch(airtable_table, records, typecast=True)
 
         stats["success"] = True
 
