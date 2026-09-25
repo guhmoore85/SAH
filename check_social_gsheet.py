@@ -79,10 +79,18 @@ def main() -> None:
     print("=" * 70)
     print(f"Header row + first 3 data rows of '{target_ws.title}'")
     print("=" * 70)
-    all_values = target_ws.get_all_values()
-    for row in all_values[:4]:
-        print(f"  {row[:26]}")
-    print(f"  ... ({len(all_values)} total rows)")
+    try:
+        all_values = target_ws.get_all_values()
+        for row in all_values[:4]:
+            print(f"  {row[:26]}")
+        print(f"  ... ({len(all_values)} total rows)")
+    except Exception as e:
+        print(f"  get_all_values() failed ({e}); falling back to row_values()")
+        for row_num in range(1, 5):
+            try:
+                print(f"  row {row_num}: {target_ws.row_values(row_num)[:26]}")
+            except Exception as row_err:
+                print(f"  row {row_num}: ERROR {row_err}")
 
 
 if __name__ == "__main__":
