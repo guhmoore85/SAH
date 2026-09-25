@@ -71,6 +71,21 @@ QUERIES = {
         GROUP BY platform
         ORDER BY platform
     """,
+    "TikTok account_name extraction spot check (distinct values + counts)": f"""
+        SELECT account_name, COUNT(*) AS row_count,
+               COUNTIF(account_name IS NULL) AS null_count
+        FROM `{PROJECT}.social_media.combined_metrics_full`
+        WHERE platform = 'TikTok'
+        GROUP BY account_name
+        ORDER BY row_count DESC
+    """,
+    "TikTok sample rows (most recent 5)": f"""
+        SELECT date, account_name, post_id, post_url, content
+        FROM `{PROJECT}.social_media.combined_metrics_full`
+        WHERE platform = 'TikTok'
+        ORDER BY date DESC
+        LIMIT 5
+    """,
 }
 
 # Raw, pre-transformation Fivetran-synced tables -- unprefixed schema matching
