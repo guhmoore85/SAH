@@ -385,6 +385,21 @@ def upsert_records(
         len(to_create), len(to_update), skipped,
     )
 
+    # Prune stale records (anything left in existing_by_key wasn't in
+    # new_records at all) BEFORE creating new ones -- if the table is
+    # already at or over Airtable's per-base record cap, batch_create fails
+    # outright until space is freed, so pruning has to happen first.
+    pruned = 0
+    if prune_stale and existing_by_key:
+        stale_ids = [rec["id"] for rec in existing_by_key.values()]
+        logger.info("Pruning %d stale records not present in this sync...", len(stale_ids))
+        for i in range(0, len(stale_ids), BATCH_SIZE):
+            batch = stale_ids[i : i + BATCH_SIZE]
+            retry_operation(table.batch_delete, batch)
+            pruned += len(batch)
+            time.sleep(BATCH_SLEEP)
+        logger.info("Pruned %d stale records", pruned)
+
     # Batch create new records
     created = 0
     for i in range(0, len(to_create), BATCH_SIZE):
@@ -404,18 +419,6 @@ def upsert_records(
         if updated % 100 == 0 or updated == len(to_update):
             logger.info("Updated %d/%d existing records", updated, len(to_update))
         time.sleep(BATCH_SLEEP)
-
-    # Anything left in existing_by_key wasn't in new_records at all
-    pruned = 0
-    if prune_stale and existing_by_key:
-        stale_ids = [rec["id"] for rec in existing_by_key.values()]
-        logger.info("Pruning %d stale records not present in this sync...", len(stale_ids))
-        for i in range(0, len(stale_ids), BATCH_SIZE):
-            batch = stale_ids[i : i + BATCH_SIZE]
-            retry_operation(table.batch_delete, batch)
-            pruned += len(batch)
-            time.sleep(BATCH_SLEEP)
-        logger.info("Pruned %d stale records", pruned)
 
     return {"created": created, "updated": updated, "skipped": skipped, "pruned": pruned}
 
