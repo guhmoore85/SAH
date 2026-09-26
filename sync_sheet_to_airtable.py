@@ -268,9 +268,22 @@ def transform_row(headers: list[str], row: list[Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+def _key_component(value) -> str:
+    """Normalize one key field's value to a plain string.
+
+    Airtable returns multi-select/linked-record fields as a list even when
+    only one value is set (e.g. ['17895695668004550']). str()-ing that
+    directly yields "['17895695668004550']", which will never match the
+    plain string a fresh source value produces -- flatten lists first.
+    """
+    if isinstance(value, list):
+        return ",".join(str(v) for v in value)
+    return str(value)
+
+
 def _make_key(record_fields: dict, key_fields: list[str]) -> tuple:
     """Build a hashable composite key from a record's fields."""
-    return tuple(str(record_fields.get(k, "")).strip().lower() for k in key_fields)
+    return tuple(_key_component(record_fields.get(k, "")).strip().lower() for k in key_fields)
 
 
 def fetch_existing_records(table) -> list[dict]:
