@@ -327,13 +327,24 @@ def create_records_batch(table, records: list[dict], typecast: bool = False) -> 
     return created
 
 
-def upsert_records(table, new_records: list[dict], key_fields: list[str], typecast: bool = False) -> dict:
+def upsert_records(
+    table,
+    new_records: list[dict],
+    key_fields: list[str],
+    typecast: bool = False,
+    prune_stale: bool = False,
+) -> dict:
     """Upsert: update existing records that match on key_fields, insert new ones.
 
     typecast=True lets Airtable auto-convert cell values and auto-add
     missing single/multi-select options instead of rejecting the write.
 
-    Returns dict with counts: created, updated, skipped (unchanged).
+    prune_stale=True deletes existing Airtable records whose key isn't
+    present in new_records at all -- use this when new_records is itself
+    scoped to a rolling window (e.g. "last 365 days"), so records that have
+    aged out of that window get removed instead of accumulating forever.
+
+    Returns dict with counts: created, updated, skipped (unchanged), pruned.
     """
     existing = fetch_existing_records(table)
 
@@ -394,7 +405,19 @@ def upsert_records(table, new_records: list[dict], key_fields: list[str], typeca
             logger.info("Updated %d/%d existing records", updated, len(to_update))
         time.sleep(BATCH_SLEEP)
 
-    return {"created": created, "updated": updated, "skipped": skipped}
+    # Anything left in existing_by_key wasn't in new_records at all
+    pruned = 0
+    if prune_stale and existing_by_key:
+        stale_ids = [rec["id"] for rec in existing_by_key.values()]
+        logger.info("Pruning %d stale records not present in this sync...", len(stale_ids))
+        for i in range(0, len(stale_ids), BATCH_SIZE):
+            batch = stale_ids[i : i + BATCH_SIZE]
+            retry_operation(table.batch_delete, batch)
+            pruned += len(batch)
+            time.sleep(BATCH_SLEEP)
+        logger.info("Pruned %d stale records", pruned)
+
+    return {"created": created, "updated": updated, "skipped": skipped, "pruned": pruned}
 
 
 # ---------------------------------------------------------------------------

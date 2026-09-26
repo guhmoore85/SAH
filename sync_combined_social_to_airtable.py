@@ -19,14 +19,24 @@ Reuses the upsert/retry/field-filtering logic from sync_sheet_to_airtable.py
 rather than duplicating it -- only the data source (BigQuery query instead
 of a Google Sheet read) differs.
 
+combined_metrics_full holds every post since each platform's account was
+created, which is far more than a live dashboard needs and blew past
+Airtable's per-base record cap after the first full sync (~99k rows).
+Scoped to a rolling window (DAYS_BACK, default 365 -- same convention as
+the GA4 sync's "Airtable_Active_365" sheet) and self-prunes: in upsert
+mode, any existing Airtable record that has aged out of the window (not
+present in this run's BigQuery read at all) gets deleted, so the base
+stays bounded instead of growing every run.
+
 Environment variables:
     GOOGLE_SERVICE_ACCOUNT_JSON / GOOGLE_SERVICE_ACCOUNT_FILE - BigQuery auth
     AIRTABLE_PAT                 - needs access granted to the target base
     AIRTABLE_BASE_ID             - default: appEYxbed1rP9wyUq (SAH_Social_2026)
     AIRTABLE_TABLE_ID            - default: tbl5WCOhWD0c8tum5 (Combined_social)
     BQ_PROJECT                   - default: stopaapihate-472516
-    SYNC_MODE                    - "upsert" (default) or "replace"
+    SYNC_MODE                    - "upsert" (default, self-pruning) or "replace"
     SYNC_KEY_FIELDS               - default: platform,post_id
+    DAYS_BACK                    - default: 365; rolling window on `date`
     ROW_LIMIT                    - (optional) limit rows for testing
 
 Usage:
@@ -68,6 +78,7 @@ SYNC_KEY_FIELDS = [
     f.strip() for f in os.getenv("SYNC_KEY_FIELDS", "platform,post_id").split(",") if f.strip()
 ]
 ROW_LIMIT = int(os.getenv("ROW_LIMIT") or 0) or None
+DAYS_BACK = int(os.getenv("DAYS_BACK") or 365)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -102,14 +113,18 @@ def _coerce_bq_value(value: Any) -> Any:
 
 
 def read_combined_metrics(client: bigquery.Client) -> list[dict[str, Any]]:
-    """Read all rows from social_media.combined_metrics_full."""
+    """Read rows from social_media.combined_metrics_full within the last DAYS_BACK days."""
     limit_clause = f"LIMIT {ROW_LIMIT}" if ROW_LIMIT else ""
     query = f"""
         SELECT *
         FROM `{BQ_PROJECT}.social_media.combined_metrics_full`
+        WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL {DAYS_BACK} DAY)
         {limit_clause}
     """
-    logger.info("Querying %s.social_media.combined_metrics_full", BQ_PROJECT)
+    logger.info(
+        "Querying %s.social_media.combined_metrics_full (last %d days)",
+        BQ_PROJECT, DAYS_BACK,
+    )
     rows = list(client.query(query).result())
     logger.info("Read %d rows", len(rows))
 
@@ -131,6 +146,7 @@ def sync() -> dict[str, Any]:
         "records_created": 0,
         "records_updated": 0,
         "records_skipped": 0,
+        "records_pruned": 0,
         "errors": [],
         "success": False,
     }
@@ -166,12 +182,18 @@ def sync() -> dict[str, Any]:
         # BigQuery source data can carry values (e.g. content_type values
         # like "Image") that don't yet exist as options on Airtable's
         # single/multi-select fields. typecast=True lets Airtable add them
-        # automatically instead of rejecting the write.
+        # automatically instead of rejecting the write. prune_stale=True
+        # deletes Airtable records that have aged out of the DAYS_BACK
+        # window (not present in this run's read at all), keeping the base
+        # bounded instead of growing forever.
         if SYNC_MODE == "upsert":
-            result = upsert_records(airtable_table, records, SYNC_KEY_FIELDS, typecast=True)
+            result = upsert_records(
+                airtable_table, records, SYNC_KEY_FIELDS, typecast=True, prune_stale=True
+            )
             stats["records_created"] = result["created"]
             stats["records_updated"] = result["updated"]
             stats["records_skipped"] = result["skipped"]
+            stats["records_pruned"] = result["pruned"]
         else:
             stats["records_deleted"] = delete_all_records(airtable_table)
             stats["records_created"] = create_records_batch(airtable_table, records, typecast=True)
@@ -197,6 +219,7 @@ def sync() -> dict[str, Any]:
             logger.info("  Records created: %d", stats["records_created"])
             logger.info("  Records updated: %d", stats["records_updated"])
             logger.info("  Records skipped: %d (unchanged)", stats["records_skipped"])
+            logger.info("  Records pruned:  %d (aged out of window)", stats["records_pruned"])
         else:
             logger.info("  Records deleted: %d", stats["records_deleted"])
             logger.info("  Records created: %d", stats["records_created"])
