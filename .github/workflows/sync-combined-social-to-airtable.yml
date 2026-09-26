@@ -22,12 +22,11 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    # The query is now scoped to a rolling DAYS_BACK window (default 365,
-    # see sync_combined_social_to_airtable.py), but the first run after
-    # narrowing that window still has ~97k pre-existing Airtable records to
-    # prune, and Airtable's API hard-limits batches to 10 records each --
-    # keep a generous ceiling.
-    timeout-minutes: 180
+    # A full "replace" cleanup (delete ~125k duplicate-laden records, then
+    # recreate ~51k in-window ones) runs at ~15 records/sec observed --
+    # ~192 minutes total. 340 leaves headroom under GitHub's 360-minute
+    # hard cap for hosted runners.
+    timeout-minutes: 340
 
     steps:
       - name: Checkout repository
