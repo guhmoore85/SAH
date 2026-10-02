@@ -19,6 +19,14 @@ on:
         required: false
         default: ''
 
+# Prevent overlapping sync runs -- without this, a cancelled or
+# still-finishing run can keep writing to Airtable (GitHub Actions
+# cancellation doesn't interrupt a blocking API call mid-flight) while a
+# new run starts fresh, each unaware of the other's writes. That's what
+# produced a 103k-row table on 2026-10-02 despite the 180-day window.
+concurrency:
+  group: combined-social-airtable-sync
+
 jobs:
   sync:
     runs-on: ubuntu-latest
