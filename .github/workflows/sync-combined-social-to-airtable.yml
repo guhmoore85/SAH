@@ -15,7 +15,7 @@ on:
         required: false
         default: ''
       days_back:
-        description: 'Rolling window in days (leave blank for default: 365)'
+        description: 'Rolling window in days (leave blank for default: 180)'
         required: false
         default: ''
 

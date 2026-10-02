@@ -22,11 +22,14 @@ of a Google Sheet read) differs.
 combined_metrics_full holds every post since each platform's account was
 created, which is far more than a live dashboard needs and blew past
 Airtable's per-base record cap after the first full sync (~99k rows).
-Scoped to a rolling window (DAYS_BACK, default 365 -- same convention as
-the GA4 sync's "Airtable_Active_365" sheet) and self-prunes: in upsert
-mode, any existing Airtable record that has aged out of the window (not
-present in this run's BigQuery read at all) gets deleted, so the base
-stays bounded instead of growing every run.
+Scoped to a rolling window (DAYS_BACK, default 180 -- a 365-day window
+produced ~51k rows against a ~25k record cap, so 180 days targets
+roughly half that) and self-prunes: in upsert mode, any existing
+Airtable record that has aged out of the window (not present in this
+run's BigQuery read at all) gets deleted, so the base stays bounded
+instead of growing every run -- the scheduled weekly sync re-applies
+this same window and prune every time, so it converges back to roughly
+the same row count rather than creeping upward over time.
 
 Environment variables:
     GOOGLE_SERVICE_ACCOUNT_JSON / GOOGLE_SERVICE_ACCOUNT_FILE - BigQuery auth
@@ -36,7 +39,7 @@ Environment variables:
     BQ_PROJECT                   - default: stopaapihate-472516
     SYNC_MODE                    - "upsert" (default, self-pruning) or "replace"
     SYNC_KEY_FIELDS               - default: platform,post_id
-    DAYS_BACK                    - default: 365; rolling window on `date`
+    DAYS_BACK                    - default: 180; rolling window on `date`
     ROW_LIMIT                    - (optional) limit rows for testing
 
 Usage:
@@ -78,7 +81,7 @@ SYNC_KEY_FIELDS = [
     f.strip() for f in os.getenv("SYNC_KEY_FIELDS", "platform,post_id").split(",") if f.strip()
 ]
 ROW_LIMIT = int(os.getenv("ROW_LIMIT") or 0) or None
-DAYS_BACK = int(os.getenv("DAYS_BACK") or 365)
+DAYS_BACK = int(os.getenv("DAYS_BACK") or 180)
 
 logging.basicConfig(
     level=logging.INFO,
