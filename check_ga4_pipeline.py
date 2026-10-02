@@ -215,6 +215,50 @@ def main() -> None:
         ORDER BY device_category
     """))
 
+    section("7. New social_media.ga4_active_365d vs old table vs raw Fivetran")
+    new = f"{PROJECT}.social_media.ga4_active_365d"
+    print_rows(run(client, f"""
+        SELECT COUNT(*) AS rows_, MIN(date) AS min_date, MAX(date) AS max_date,
+               COUNT(DISTINCT dimension_type) AS dim_types
+        FROM `{new}`
+    """))
+    print("\n  Per day x dimension_type: new vs old (users / sessions)")
+    print_rows(run(client, f"""
+        WITH n AS (
+            SELECT date, dimension_type, COUNT(*) AS new_rows, SUM(users) AS new_users_,
+                   SUM(sessions) AS new_sessions
+            FROM `{new}` WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY) GROUP BY 1, 2
+        ), o AS (
+            SELECT date, dimension_type, COUNT(*) AS old_rows, SUM(users) AS old_users,
+                   SUM(sessions) AS old_sessions
+            FROM `{PROJECT}.{DATASET}.{TARGET}` WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY) GROUP BY 1, 2
+        )
+        SELECT * FROM n FULL JOIN o USING (date, dimension_type) ORDER BY date, dimension_type
+    """))
+    print("\n  Device + Location totals in the new table vs raw Fivetran (should match exactly)")
+    print_rows(run(client, f"""
+        WITH n AS (
+            SELECT date, dimension_type, SUM(users) AS new_users_ FROM `{new}`
+            WHERE dimension_type IN ('Device', 'Location')
+              AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY) GROUP BY 1, 2
+        ), r AS (
+            SELECT date, 'Device' AS dimension_type, SUM(total_users) AS raw_users
+            FROM `{PROJECT}.{DATASET}.tech_device_category_report` GROUP BY 1
+            UNION ALL
+            SELECT date, 'Location', SUM(total_users)
+            FROM `{PROJECT}.{DATASET}.demographic_city_report` GROUP BY 1
+        )
+        SELECT dimension_type, COUNT(*) AS days, COUNTIF(new_users_ != raw_users) AS mismatched_days
+        FROM n JOIN r USING (date, dimension_type) GROUP BY 1
+    """))
+    print("\n  Sample rows for the most recent day")
+    print_rows(run(client, f"""
+        SELECT * FROM `{new}`
+        WHERE date = (SELECT MAX(date) FROM `{new}`)
+          AND (dimension_type = 'Device' OR dimension_value = '(other)' OR dimension_value = '/')
+        ORDER BY dimension_type, dimension_value
+    """), width=30)
+
     section("5. GA4 Airtable table: last 7 days by dimension_type")
     pat = os.getenv("AIRTABLE_PAT")
     base_id = os.getenv("AIRTABLE_BASE_ID")

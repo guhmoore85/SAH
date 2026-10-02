@@ -8,6 +8,7 @@ on:
     paths:
       - 'check_ga4_pipeline.py'
       - '.github/workflows/check-ga4-pipeline.yml'
+      - 'dbt_cross_channel/models/staging/ga4_active_365d.sql'
 
 jobs:
   check:
@@ -26,6 +27,18 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      # Builds only ga4_active_365d (not stg_ga4 or the marts), so running
+      # this from a branch doesn't change what production dashboards read
+      - name: Build ga4_active_365d
+        working-directory: dbt_cross_channel
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          echo "$GOOGLE_SERVICE_ACCOUNT_JSON" > /tmp/bq-keyfile.json
+          export GOOGLE_SERVICE_ACCOUNT_FILE=/tmp/bq-keyfile.json
+          dbt deps --profiles-dir .
+          dbt build --profiles-dir . --target dev --select ga4_active_365d
 
       - name: Run GA4 pipeline check
         run: python check_ga4_pipeline.py
