@@ -123,13 +123,21 @@ def map_row(row: dict[str, Any]) -> dict[str, Any]:
         (Digital_master's own values are "Social Media"/"Website"/
         "Email Marketing"/"Forms & Actions", not the Social/Web/Email/Forms
         used elsewhere)
-      - subchannel: item_type (Page/Location/Campaign/Device for GA4,
-        Post for social, Email for email, Form for forms) -- matches the
-        one sample row we inspected (channel=Website, subchannel=Page)
+      - subchannel: ga4_dimension_type if set, else channel -- gives
+        Page/Location/Campaign/Device for GA4 (matches the one sample
+        row we inspected: channel=Website, subchannel=Page), but
+        Instagram/Facebook/TikTok for social, Email for email, Forms
+        for forms. item_type alone would collapse all social rows to
+        the single value "Post", losing per-platform detail the old
+        dashboard's channel filter likely needs
       - content_name: item_name
       - reach: reach_or_impressions
       - sessions: website_sessions (GA4-only; null elsewhere, matching
         the field's literal name)
+      - website_users: website_users, passed through as-is (GA4-only).
+        Not one of Digital_master's original 16 fields -- add a
+        "website_users" (Number) field in Airtable for this to actually
+        populate, same as engagements
       - new_followers_contacts: new_followers (social) + new_contacts
         (forms) added together -- the field name implies a single
         cross-channel "new audience" figure
@@ -140,6 +148,10 @@ def map_row(row: dict[str, Any]) -> dict[str, Any]:
       - action_takers: clicks (closest existing cross-channel "took
         action" proxy: link clicks for social, key events for GA4,
         clicks for email; null for forms)
+      - engagements: engagement, passed through as-is. Not one of
+        Digital_master's original 16 fields -- add an "engagements"
+        (Number) field in Airtable for this to actually populate;
+        until then it's silently dropped like any other unknown field
       - amount_raised: revenue
       - avg_contribution: computed here (revenue / contributions) since
         cross_channel_all_items has no equivalent column
@@ -162,13 +174,15 @@ def map_row(row: dict[str, Any]) -> dict[str, Any]:
     mapped = {
         "date": row_date,
         "channel": CHANNEL_GROUP_DISPLAY.get(channel_group, channel_group),
-        "subchannel": row.get("item_type"),
+        "subchannel": row.get("ga4_dimension_type") or row.get("channel"),
         "content_name": row.get("item_name"),
         "reach": row.get("reach_or_impressions"),
         "new_followers_contacts": (new_followers + new_contacts) or None,
         "sessions": row.get("website_sessions"),
+        "website_users": row.get("website_users"),
         "engagement_rate_pct": row.get("engagement_rate"),
         "action_takers": row.get("clicks"),
+        "engagements": row.get("engagement"),
         "contributions": contributions,
         "amount_raised": revenue,
         "year": row.get("year"),
