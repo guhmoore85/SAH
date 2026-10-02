@@ -14,7 +14,7 @@ select
     -- Identity
     last_submission_date                        as date,
     'Forms'                                     as channel,
-    'EveryAction'                               as channel_group,
+    'Forms'                                     as channel_group,
     'Form'                                      as item_type,
     cast(null as string)                        as item_id,
     cast(null as string)                        as item_url,
