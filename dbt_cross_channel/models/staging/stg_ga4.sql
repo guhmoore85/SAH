@@ -1,13 +1,9 @@
 -- Staging: GA4 web analytics — one row per date × dimension value
--- Deduped via ROW_NUMBER in case airtable_active_365d has overlapping rebuilds
+-- Built by ga4_active_365d from the Fivetran GA4 reports (one row per key, no dedup needed)
 
-with deduped as (
-    select *,
-        row_number() over (
-            partition by date, dimension_type, dimension_value
-            order by date desc
-        ) as rn
-    from {{ source('google_analytics_4', 'airtable_active_365d') }}
+with ga4 as (
+    select *
+    from {{ ref('ga4_active_365d') }}
     where date is not null
 )
 
@@ -78,5 +74,4 @@ select
     cast(null as string)            as form_type,
     cast(null as string)            as form_status
 
-from deduped
-where rn = 1
+from ga4
