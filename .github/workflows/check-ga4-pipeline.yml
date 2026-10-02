@@ -28,8 +28,8 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # Builds only ga4_active_365d (not stg_ga4 or the marts), so running
-      # this from a branch doesn't change what production dashboards read
+      # Builds only ga4_active_365d, into the social_media_check dataset, so
+      # running this from a branch never changes what production reads
       - name: Build ga4_active_365d
         working-directory: dbt_cross_channel
         env:
@@ -38,13 +38,14 @@ jobs:
           echo "$GOOGLE_SERVICE_ACCOUNT_JSON" > /tmp/bq-keyfile.json
           export GOOGLE_SERVICE_ACCOUNT_FILE=/tmp/bq-keyfile.json
           dbt deps --profiles-dir .
-          dbt build --profiles-dir . --target dev --select ga4_active_365d
+          dbt build --profiles-dir . --target check --select ga4_active_365d
 
       - name: Run GA4 pipeline check
         run: python check_ga4_pipeline.py
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           BQ_PROJECT: stopaapihate-472516
+          GA4_NEW_DATASET: social_media_check
           AIRTABLE_PAT: ${{ secrets.AIRTABLE_PAT }}
           AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
           AIRTABLE_TABLE_ID: ${{ secrets.AIRTABLE_TABLE_ID }}

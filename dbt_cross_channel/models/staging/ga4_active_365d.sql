@@ -12,9 +12,11 @@
 --     that way); null when engagement_rate is 0 and sessions can't be known
 --
 -- Reading it: each dimension_type is a complete, separate breakdown of the
--- same traffic. Never sum across dimension_types (that's 3-4x the real
--- number). For site totals use dimension_type = 'Device'. Users don't add up
--- across Page rows (one person viewing 3 pages is in 3 rows) or across days.
+-- same traffic. Never sum across dimension_types (that's 3-5x the real
+-- number). For site totals use dimension_type = 'Site Total': one row per
+-- day straight from GA4 (active users, as the GA4 UI shows them), not a sum
+-- of breakdown rows. Users don't add up across Page rows (one person viewing
+-- 3 pages is in 3 rows) or across days.
 
 {{ config(materialized='table') }}
 
@@ -79,8 +81,27 @@ campaign as (
     from {{ source('google_analytics_4', 'traffic_acquisition_session_campaign_report') }}
 ),
 
+site_total as (
+    -- daily_site_totals is a date-only Fivetran custom report, so its users
+    -- are deduplicated across devices/pages exactly as GA4 counts them.
+    -- active_users was added to the report later; total_users fills the
+    -- rows synced before then until the table is re-synced.
+    select
+        date,
+        'Site Total'                                            as dimension_type,
+        'All traffic'                                           as dimension_value,
+        coalesce(active_users, total_users)                     as users,
+        new_users,
+        cast(round(engagement_rate * sessions) as int64)        as engaged_sessions,
+        sessions,
+        cast(null as int64)                                     as key_events,
+        cast(user_engagement_duration as int64)                 as user_engagement_duration
+    from {{ source('google_analytics_4', 'daily_site_totals') }}
+),
+
 unioned as (
-    select * from device
+    select * from site_total
+    union all select * from device
     union all select * from location
     union all select * from page
     union all select * from campaign

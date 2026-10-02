@@ -247,8 +247,8 @@ def main() -> None:
         ORDER BY device_category
     """))
 
-    section("7. New social_media.ga4_active_365d vs old table vs raw Fivetran")
-    new = f"{PROJECT}.social_media.ga4_active_365d"
+    section("7. Rebuilt ga4_active_365d vs old table vs raw Fivetran")
+    new = f"{PROJECT}.{os.getenv('GA4_NEW_DATASET', 'social_media')}.ga4_active_365d"
     print_rows(run(client, f"""
         SELECT COUNT(*) AS rows_, MIN(date) AS min_date, MAX(date) AS max_date,
                COUNT(DISTINCT dimension_type) AS dim_types
@@ -291,7 +291,7 @@ def main() -> None:
         ORDER BY dimension_type, dimension_value
     """), width=30)
 
-    section("8. GA4 UI daily totals vs Device rows (new table and old table)")
+    section("8. GA4 UI daily totals vs Site Total rows (new table) and Device rows (old table)")
     ui_rows = " UNION ALL ".join(
         f"SELECT DATE '{d}' AS date, {u} AS ui_users, {n} AS ui_new, {se} AS ui_sessions, {er} AS ui_er"
         for d, u, n, se, er in (line.split() for line in GA4_UI_DAILY.strip().splitlines())
@@ -301,7 +301,7 @@ def main() -> None:
         nt AS (
             SELECT date, SUM(users) AS users, SUM(new_users) AS new_users, SUM(sessions) AS sessions,
                    ROUND(100 * SAFE_DIVIDE(SUM(engagement_rate * sessions), SUM(sessions)), 1) AS er
-            FROM `{new}` WHERE dimension_type = 'Device' GROUP BY 1
+            FROM `{new}` WHERE dimension_type = 'Site Total' GROUP BY 1
         ),
         ot AS (
             SELECT date, SUM(users) AS users, SUM(sessions) AS sessions
