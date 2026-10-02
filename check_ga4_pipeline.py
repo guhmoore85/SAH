@@ -40,6 +40,38 @@ PROJECT = os.getenv("BQ_PROJECT", "stopaapihate-472516")
 DATASET = os.getenv("GA4_DATASET", "google_analytics_4")
 TARGET = "airtable_active_365d"
 
+# GA4 UI "Daily Traffic Data" export (Active Users, New Users, Sessions,
+# Engagement Rate) used to check the rebuilt table against GA4 itself
+GA4_UI_DAILY = """
+2026-09-04 647 617 717 87.3
+2026-09-05 468 459 510 89.8
+2026-09-06 487 470 540 88.0
+2026-09-07 491 465 542 86.4
+2026-09-08 636 615 725 88.7
+2026-09-09 589 544 679 87.5
+2026-09-10 626 591 729 84.9
+2026-09-11 757 709 854 88.4
+2026-09-12 457 435 496 83.7
+2026-09-13 522 500 607 82.7
+2026-09-14 668 627 748 87.3
+2026-09-15 1043 987 1152 87.9
+2026-09-16 713 664 837 87.0
+2026-09-17 894 855 1002 78.8
+2026-09-18 693 651 797 87.3
+2026-09-19 598 580 648 88.1
+2026-09-20 577 549 653 86.8
+2026-09-21 729 670 832 86.7
+2026-09-22 809 746 905 87.5
+2026-09-23 807 756 932 90.0
+2026-09-24 922 880 1037 87.8
+2026-09-25 913 869 1018 89.7
+2026-09-26 563 542 633 86.6
+2026-09-27 517 497 594 89.2
+2026-09-28 660 618 751 87.9
+2026-09-29 667 618 752 89.1
+2026-10-01 796 739 856 88.9
+"""
+
 
 def get_client() -> bigquery.Client:
     json_str = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
@@ -258,6 +290,54 @@ def main() -> None:
           AND (dimension_type = 'Device' OR dimension_value = '(other)' OR dimension_value = '/')
         ORDER BY dimension_type, dimension_value
     """), width=30)
+
+    section("8. GA4 UI daily totals vs Device rows (new table and old table)")
+    ui_rows = " UNION ALL ".join(
+        f"SELECT DATE '{d}' AS date, {u} AS ui_users, {n} AS ui_new, {se} AS ui_sessions, {er} AS ui_er"
+        for d, u, n, se, er in (line.split() for line in GA4_UI_DAILY.strip().splitlines())
+    )
+    comparison = run(client, f"""
+        WITH ui AS ({ui_rows}),
+        new AS (
+            SELECT date, SUM(users) AS users, SUM(new_users) AS new_users, SUM(sessions) AS sessions,
+                   ROUND(100 * SAFE_DIVIDE(SUM(engagement_rate * sessions), SUM(sessions)), 1) AS er
+            FROM `{new}` WHERE dimension_type = 'Device' GROUP BY 1
+        ),
+        old AS (
+            SELECT date, SUM(users) AS users, SUM(sessions) AS sessions
+            FROM `{PROJECT}.{DATASET}.{TARGET}` WHERE dimension_type = 'Device' GROUP BY 1
+        )
+        SELECT ui.date,
+               ui.ui_users, new.users AS new_users_, old.users AS old_users,
+               ui.ui_new, new.new_users AS new_new,
+               ui.ui_sessions, new.sessions AS new_sessions, old.sessions AS old_sessions,
+               ui.ui_er, new.er AS new_er
+        FROM ui LEFT JOIN new USING (date) LEFT JOIN old USING (date)
+        ORDER BY ui.date
+    """)
+    print_rows(comparison)
+
+    def pct(a, b):
+        return f"{100 * (a - b) / b:+.1f}%" if a is not None and b else "n/a"
+
+    print("\n  Percent difference from GA4 UI:")
+    for r in comparison:
+        print(f"  {r['date']} | users new {pct(r['new_users_'], r['ui_users'])} old {pct(r['old_users'], r['ui_users'])}"
+              f" | new_users {pct(r['new_new'], r['ui_new'])}"
+              f" | sessions new {pct(r['new_sessions'], r['ui_sessions'])} old {pct(r['old_sessions'], r['ui_sessions'])}"
+              f" | eng_rate new {r['new_er']} vs {r['ui_er']}")
+    full = [r for r in comparison if r["new_users_"] is not None]
+    if full:
+        tot = {k: sum(r[k] or 0 for r in full) for k in
+               ("ui_users", "new_users_", "ui_new", "new_new", "ui_sessions", "new_sessions")}
+        old_full = [r for r in full if r["old_users"] is not None]
+        print(f"\n  TOTAL over {len(full)} days: users {pct(tot['new_users_'], tot['ui_users'])}"
+              f" | new_users {pct(tot['new_new'], tot['ui_new'])}"
+              f" | sessions {pct(tot['new_sessions'], tot['ui_sessions'])}")
+        if old_full:
+            print(f"  OLD TABLE over {len(old_full)} days: users "
+                  f"{pct(sum(r['old_users'] for r in old_full), sum(r['ui_users'] for r in old_full))}"
+                  f" | sessions {pct(sum(r['old_sessions'] or 0 for r in old_full), sum(r['ui_sessions'] for r in old_full))}")
 
     section("5. GA4 Airtable table: last 7 days by dimension_type")
     pat = os.getenv("AIRTABLE_PAT")
