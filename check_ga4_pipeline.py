@@ -298,21 +298,21 @@ def main() -> None:
     )
     comparison = run(client, f"""
         WITH ui AS ({ui_rows}),
-        new AS (
+        nt AS (
             SELECT date, SUM(users) AS users, SUM(new_users) AS new_users, SUM(sessions) AS sessions,
                    ROUND(100 * SAFE_DIVIDE(SUM(engagement_rate * sessions), SUM(sessions)), 1) AS er
             FROM `{new}` WHERE dimension_type = 'Device' GROUP BY 1
         ),
-        old AS (
+        ot AS (
             SELECT date, SUM(users) AS users, SUM(sessions) AS sessions
             FROM `{PROJECT}.{DATASET}.{TARGET}` WHERE dimension_type = 'Device' GROUP BY 1
         )
         SELECT ui.date,
-               ui.ui_users, new.users AS new_users_, old.users AS old_users,
-               ui.ui_new, new.new_users AS new_new,
-               ui.ui_sessions, new.sessions AS new_sessions, old.sessions AS old_sessions,
-               ui.ui_er, new.er AS new_er
-        FROM ui LEFT JOIN new USING (date) LEFT JOIN old USING (date)
+               ui.ui_users, nt.users AS new_users_, ot.users AS old_users,
+               ui.ui_new, nt.new_users AS new_new,
+               ui.ui_sessions, nt.sessions AS new_sessions, ot.sessions AS old_sessions,
+               ui.ui_er, nt.er AS new_er
+        FROM ui LEFT JOIN nt USING (date) LEFT JOIN ot USING (date)
         ORDER BY ui.date
     """)
     print_rows(comparison)
