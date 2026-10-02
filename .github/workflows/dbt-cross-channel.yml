@@ -2,8 +2,9 @@ name: dbt Cross-Channel Build
 
 on:
   schedule:
-    # 7:00 AM UTC daily — after EveryAction (5:45 AM) and GA4 (6:00 AM) refreshes
-    - cron: '0 7 * * *'
+    # 9:13 AM UTC daily — after EveryAction (5:45 AM) and Fivetran's GA4
+    # sync (~8:20 AM UTC), so ga4_active_365d picks up the latest GA4 data
+    - cron: '13 9 * * *'
   workflow_dispatch:
     inputs:
       full_refresh:

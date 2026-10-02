@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
-Google Sheets to Airtable Sync Script
+GA4 to Airtable Sync Script
 
-Syncs GA4 analytics data from Google Sheets to Airtable.
-Designed to run daily via GitHub Actions or cron.
+Syncs GA4 analytics data to Airtable. By default it reads
+social_media.ga4_active_365d in BigQuery (built by dbt_cross_channel from
+the Fivetran GA4 reports); set GA4_SOURCE=sheet to read the legacy Google
+Sheet tab instead. Designed to run daily via GitHub Actions or cron.
 """
 
 import os
@@ -11,10 +13,11 @@ import sys
 import json
 import logging
 import time
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 import gspread
+from google.cloud import bigquery
 from google.oauth2.service_account import Credentials
 from pyairtable import Api, Table
 from pyairtable.formulas import match
@@ -32,6 +35,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration
+GA4_SOURCE = (os.getenv("GA4_SOURCE") or "bigquery").lower()
+GA4_BQ_TABLE = os.getenv("GA4_BQ_TABLE", "stopaapihate-472516.social_media.ga4_active_365d")
 GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID", "12teYXqd8kBIFRorrndQMmYIy0gp2D5FLhfeq-p8-l5I")
 GOOGLE_SHEET_TAB = os.getenv("GOOGLE_SHEET_TAB", "Airtable_Active_365")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID", "appdZ68evU4qlG8mg")
@@ -100,6 +105,42 @@ def get_google_sheets_client() -> gspread.Client:
         "Google credentials not found. Set GOOGLE_SERVICE_ACCOUNT_JSON or "
         "GOOGLE_SERVICE_ACCOUNT_FILE environment variable."
     )
+
+
+def read_bigquery() -> tuple[list[str], list[list[Any]]]:
+    """
+    Read all rows from the GA4 BigQuery table, in the same (headers, rows)
+    shape read_google_sheet returns.
+    """
+    json_creds = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
+    creds_file = os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE")
+    if json_creds:
+        credentials = Credentials.from_service_account_info(json.loads(json_creds))
+    elif creds_file:
+        credentials = Credentials.from_service_account_file(creds_file)
+    else:
+        raise ValueError(
+            "Google credentials not found. Set GOOGLE_SERVICE_ACCOUNT_JSON or "
+            "GOOGLE_SERVICE_ACCOUNT_FILE environment variable."
+        )
+    client = bigquery.Client(project=GA4_BQ_TABLE.split(".")[0], credentials=credentials)
+
+    limit_clause = f"LIMIT {ROW_LIMIT}" if ROW_LIMIT else ""
+    logger.info(f"Querying BigQuery table: {GA4_BQ_TABLE}")
+    result = client.query(
+        f"SELECT * FROM `{GA4_BQ_TABLE}` ORDER BY date DESC, dimension_type, dimension_value {limit_clause}"
+    ).result()
+
+    headers = [field.name for field in result.schema]
+    rows = [
+        [v.isoformat() if isinstance(v, date) else v for v in row.values()]
+        for row in result
+    ]
+    if not rows:
+        raise ValueError(f"BigQuery table {GA4_BQ_TABLE} is empty")
+
+    logger.info(f"Read {len(rows)} rows with {len(headers)} columns")
+    return headers, rows
 
 
 def get_airtable_table() -> Table:
@@ -351,12 +392,8 @@ def sync() -> dict[str, Any]:
 
     try:
         logger.info("=" * 60)
-        logger.info("Starting Google Sheets to Airtable Sync")
+        logger.info(f"Starting GA4 to Airtable Sync (source: {GA4_SOURCE})")
         logger.info("=" * 60)
-
-        # Initialize clients
-        logger.info("Initializing Google Sheets client...")
-        gs_client = get_google_sheets_client()
 
         logger.info("Initializing Airtable client...")
         airtable_table = get_airtable_table()
@@ -364,8 +401,12 @@ def sync() -> dict[str, Any]:
         # Check table schema
         check_and_create_fields(airtable_table)
 
-        # Read from Google Sheets
-        headers, rows = read_google_sheet(gs_client)
+        # Read the source rows
+        if GA4_SOURCE == "sheet":
+            logger.info("Initializing Google Sheets client...")
+            headers, rows = read_google_sheet(get_google_sheets_client())
+        else:
+            headers, rows = read_bigquery()
         stats["rows_read"] = len(rows)
 
         # Transform data

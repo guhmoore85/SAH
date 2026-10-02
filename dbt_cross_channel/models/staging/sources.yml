@@ -50,7 +50,18 @@ sources:
     schema: google_analytics_4
     tables:
       - name: airtable_active_365d
-        description: GA4 web analytics for the last 365 days — one row per date × dimension value
+        description: >
+          Legacy GA4 365-day table built by a BigQuery scheduled query. No
+          longer used -- replaced by the ga4_active_365d model, built from
+          the Fivetran reports below.
+      - name: tech_device_category_report
+        description: Fivetran GA4 report — one row per date × device category
+      - name: demographic_city_report
+        description: Fivetran GA4 report — one row per date × city
+      - name: pages_path_report
+        description: Fivetran GA4 report — one row per date × page path
+      - name: traffic_acquisition_session_campaign_report
+        description: Fivetran GA4 report — one row per date × session campaign
 
   - name: everyaction_reports
     database: stopaapihate-472516
