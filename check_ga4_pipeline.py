@@ -392,6 +392,17 @@ def main() -> None:
         FROM `{new}` WHERE dimension_type = 'Campaign' GROUP BY 1 ORDER BY 1
     """))
 
+    section("10. daily_site_totals raw, last 35 days (for client reporting)")
+    print_rows(run(client, f"""
+        SELECT date, active_users, total_users, new_users, sessions,
+               ROUND(engagement_rate, 6) AS engagement_rate, user_engagement_duration,
+               ROUND(SAFE_DIVIDE(user_engagement_duration, active_users), 2) AS avg_engagement_time_sec,
+               _fivetran_synced
+        FROM `{PROJECT}.{DATASET}.daily_site_totals`
+        WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL 35 DAY)
+        ORDER BY date
+    """))
+
     section("5. GA4 Airtable table: last 7 days by dimension_type")
     pat = os.getenv("AIRTABLE_PAT")
     base_id = os.getenv("AIRTABLE_BASE_ID")
