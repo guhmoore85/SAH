@@ -1,7 +1,16 @@
 name: Check Social Airtable Base
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      base_id:
+        description: 'Airtable base ID (leave blank for default: appEYxbed1rP9wyUq / SAH_Social_2026)'
+        required: false
+        default: ''
+      table_id:
+        description: 'Airtable table ID to inspect (leave blank for default: tbl5WCOhWD0c8tum5 / Combined_social)'
+        required: false
+        default: ''
 
 jobs:
   check:
@@ -30,3 +39,9 @@ jobs:
           # this base in Airtable's token settings, or add a separate
           # SOCIAL_AIRTABLE_PAT secret instead.
           AIRTABLE_PAT: ${{ secrets.AIRTABLE_PAT }}
+          # check_social_airtable.py does os.getenv("SOCIAL_AIRTABLE_BASE_ID",
+          # "appEYxbed1rP9wyUq") -- that default only applies when the var is
+          # UNSET, not when it's set to an empty string, so the || fallback
+          # has to happen here instead of relying on the script's own default.
+          SOCIAL_AIRTABLE_BASE_ID: ${{ inputs.base_id || 'appEYxbed1rP9wyUq' }}
+          SOCIAL_AIRTABLE_TABLE_ID: ${{ inputs.table_id || 'tbl5WCOhWD0c8tum5' }}
