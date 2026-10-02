@@ -1,0 +1,37 @@
+name: Check GA4 Pipeline
+
+on:
+  workflow_dispatch: {}
+  # Also run on pushes that touch the check itself, so it can be run from a
+  # feature branch before this workflow exists on the default branch
+  push:
+    paths:
+      - 'check_ga4_pipeline.py'
+      - '.github/workflows/check-ga4-pipeline.yml'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run GA4 pipeline check
+        run: python check_ga4_pipeline.py
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          BQ_PROJECT: stopaapihate-472516
+          AIRTABLE_PAT: ${{ secrets.AIRTABLE_PAT }}
+          AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
+          AIRTABLE_TABLE_ID: ${{ secrets.AIRTABLE_TABLE_ID }}
