@@ -140,6 +140,10 @@ def map_row(row: dict[str, Any]) -> dict[str, Any]:
       - action_takers: clicks (closest existing cross-channel "took
         action" proxy: link clicks for social, key events for GA4,
         clicks for email; null for forms)
+      - engagements: engagement, passed through as-is. Not one of
+        Digital_master's original 16 fields -- add an "engagements"
+        (Number) field in Airtable for this to actually populate;
+        until then it's silently dropped like any other unknown field
       - amount_raised: revenue
       - avg_contribution: computed here (revenue / contributions) since
         cross_channel_all_items has no equivalent column
@@ -169,6 +173,7 @@ def map_row(row: dict[str, Any]) -> dict[str, Any]:
         "sessions": row.get("website_sessions"),
         "engagement_rate_pct": row.get("engagement_rate"),
         "action_takers": row.get("clicks"),
+        "engagements": row.get("engagement"),
         "contributions": contributions,
         "amount_raised": revenue,
         "year": row.get("year"),
