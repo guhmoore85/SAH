@@ -1,0 +1,63 @@
+name: Sync Digital Master to Airtable
+
+on:
+  schedule:
+    # Weekly, Monday 9 AM UTC -- same slot as sync-combined-social-to-airtable.yml.
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+    inputs:
+      sync_mode:
+        description: 'upsert (default, safe) or replace (delete-and-recreate)'
+        required: false
+        default: 'upsert'
+      row_limit:
+        description: 'Optional row limit for a test run (leave blank for all rows)'
+        required: false
+        default: ''
+      days_back:
+        description: 'Rolling window in days (leave blank for default: 180)'
+        required: false
+        default: ''
+
+# Prevent overlapping sync runs -- a cancelled or still-finishing run can
+# keep writing to Airtable after being "cancelled" (GitHub Actions
+# cancellation doesn't interrupt a blocking API call mid-flight), which
+# caused a 103k-row corruption on the combined social sync. Queue instead.
+concurrency:
+  group: digital-master-airtable-sync
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Sync BigQuery cross_channel_all_items -> Airtable Digital_master
+        run: python sync_digital_master_to_airtable.py
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          BQ_PROJECT: "stopaapihate-472516"
+          # Reuses the existing AIRTABLE_PAT secret. If it wasn't granted
+          # access to base appEYxbed1rP9wyUq (SAH_Social_2026), this will
+          # fail with a permission/not-found error -- grant that PAT access
+          # to this base in Airtable's token settings first.
+          AIRTABLE_PAT: ${{ secrets.AIRTABLE_PAT }}
+          # inputs.* is undefined on a schedule-triggered run (no
+          # workflow_dispatch inputs exist then), which would otherwise send
+          # an empty SYNC_MODE and fall through to "replace" (delete-and-
+          # recreate) instead of the intended default -- guard with ||.
+          SYNC_MODE: ${{ inputs.sync_mode || 'upsert' }}
+          ROW_LIMIT: ${{ inputs.row_limit || '' }}
+          DAYS_BACK: ${{ inputs.days_back || '' }}
