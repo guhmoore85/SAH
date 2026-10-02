@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Privacy Policy — EveryAction Gmail Sync</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { font-family: -apple-system, Segoe UI, Helvetica, Arial, sans-serif; max-width: 680px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #1a1a1a; }
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.15rem; margin-top: 2em; }
+  code { background: #f2f2f2; padding: 0.1em 0.35em; border-radius: 3px; font-size: 0.92em; }
+</style>
+</head>
+<body>
+
+<h1>Privacy Policy — EveryAction Gmail Sync</h1>
+<p><em>Last updated: October 2, 2026</em></p>
+
+<p>
+EveryAction Gmail Sync is an internal data automation tool built and operated
+by Stop AAPI Hate. It is not a public-facing application and is not available
+for installation by the general public.
+</p>
+
+<h2>What this application does</h2>
+<p>
+This application periodically connects to a single Stop AAPI Hate-managed
+Gmail inbox to locate scheduled report emails sent automatically by
+EveryAction (our CRM/advocacy platform), using a small, fixed set of known
+email subject lines (e.g. "EveryAction Scheduled Report - Email Comparison
+Report"). When a matching email is found, the application:
+</p>
+<ul>
+  <li>Extracts a secure download link for the attached CSV report from the email body</li>
+  <li>Downloads that CSV report</li>
+  <li>Loads the report's contents into a private Google BigQuery dataset used
+      for Stop AAPI Hate's internal analytics and reporting</li>
+  <li>Applies a Gmail label to the processed email so it is not re-processed
+      on the next run</li>
+</ul>
+<p>
+The application does not read, modify, forward, or otherwise access any
+other email in the inbox. It does not compose or send email. It does not
+delete any email or attachment.
+</p>
+
+<h2>What data is accessed</h2>
+<p>
+This application requests the <code>gmail.modify</code> Google API scope.
+This scope is used solely to (a) search for and read the specific report
+emails described above, and (b) apply a Gmail label marking them as
+processed. No broader mailbox access, message content outside the matched
+emails, or account settings are accessed.
+</p>
+
+<h2>How data is stored and used</h2>
+<p>
+Data extracted from these reports (aggregate email-campaign and
+fundraising-form performance metrics; no individual constituent/donor
+personal data is extracted from the report content handled by this specific
+pipeline) is loaded into a private, access-controlled Google BigQuery
+dataset owned by Stop AAPI Hate. It is used exclusively for Stop AAPI Hate's
+internal reporting and dashboards. It is never sold, shared, or disclosed to
+any third party, and is never used for advertising or any purpose unrelated
+to Stop AAPI Hate's own internal operations.
+</p>
+
+<h2>Data retention</h2>
+<p>
+Report data is retained in Stop AAPI Hate's internal BigQuery dataset for as
+long as it remains useful for internal historical reporting, and is deleted
+or overwritten as part of routine data management. Gmail account access can
+be revoked at any time by the Stop AAPI Hate staff member who authorized it,
+via <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">Google Account → Security → Third-party access</a>.
+</p>
+
+<h2>Contact</h2>
+<p>
+Questions about this application or this policy can be directed to:
+<a href="mailto:haroldmmoore@yahoo.com">haroldmmoore@yahoo.com</a>.
+</p>
+
+</body>
+</html>
