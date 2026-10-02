@@ -134,6 +134,10 @@ def map_row(row: dict[str, Any]) -> dict[str, Any]:
       - reach: reach_or_impressions
       - sessions: website_sessions (GA4-only; null elsewhere, matching
         the field's literal name)
+      - website_users: website_users, passed through as-is (GA4-only).
+        Not one of Digital_master's original 16 fields -- add a
+        "website_users" (Number) field in Airtable for this to actually
+        populate, same as engagements
       - new_followers_contacts: new_followers (social) + new_contacts
         (forms) added together -- the field name implies a single
         cross-channel "new audience" figure
@@ -175,6 +179,7 @@ def map_row(row: dict[str, Any]) -> dict[str, Any]:
         "reach": row.get("reach_or_impressions"),
         "new_followers_contacts": (new_followers + new_contacts) or None,
         "sessions": row.get("website_sessions"),
+        "website_users": row.get("website_users"),
         "engagement_rate_pct": row.get("engagement_rate"),
         "action_takers": row.get("clicks"),
         "engagements": row.get("engagement"),
