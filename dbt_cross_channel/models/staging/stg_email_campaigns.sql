@@ -15,7 +15,7 @@ select
     -- Identity
     last_sent_date                  as date,
     'Email'                         as channel,
-    'EveryAction'                   as channel_group,
+    'Email'                         as channel_group,
     'Email'                         as item_type,
     cast(null as string)            as item_id,
     cast(null as string)            as item_url,

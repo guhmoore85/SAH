@@ -13,7 +13,7 @@ models:
       - name: channel
         description: Platform — e.g. Instagram, Facebook, Website, Email, Forms
       - name: channel_group
-        description: Grouping — Social, Web, EveryAction
+        description: Grouping — Social, Web, Email, Forms
       - name: item_type
         description: Post, Page, Location, Campaign, Device, Email, or Form
       - name: item_id
