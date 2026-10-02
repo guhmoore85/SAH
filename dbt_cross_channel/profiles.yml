@@ -9,6 +9,16 @@ cross_channel:
       threads: 4
       timeout_seconds: 300
       keyfile: "{{ env_var('GOOGLE_SERVICE_ACCOUNT_FILE', '') }}"
+    # Scratch target for check_ga4_pipeline.py: builds into its own dataset
+    # so verifying a branch never touches the tables production reads
+    check:
+      type: bigquery
+      method: service-account
+      project: stopaapihate-472516
+      dataset: social_media_check
+      threads: 4
+      timeout_seconds: 300
+      keyfile: "{{ env_var('GOOGLE_SERVICE_ACCOUNT_FILE', '') }}"
     prod:
       type: bigquery
       method: service-account-json

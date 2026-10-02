@@ -54,6 +54,8 @@ sources:
           Legacy GA4 365-day table built by a BigQuery scheduled query. No
           longer used -- replaced by the ga4_active_365d model, built from
           the Fivetran reports below.
+      - name: daily_site_totals
+        description: Fivetran GA4 custom report — one row per date (dimension date only; active users, new users, sessions, engagement rate)
       - name: tech_device_category_report
         description: Fivetran GA4 report — one row per date × device category
       - name: demographic_city_report

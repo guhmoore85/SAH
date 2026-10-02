@@ -247,8 +247,8 @@ def main() -> None:
         ORDER BY device_category
     """))
 
-    section("7. New social_media.ga4_active_365d vs old table vs raw Fivetran")
-    new = f"{PROJECT}.social_media.ga4_active_365d"
+    section("7. Rebuilt ga4_active_365d vs old table vs raw Fivetran")
+    new = f"{PROJECT}.{os.getenv('GA4_NEW_DATASET', 'social_media')}.ga4_active_365d"
     print_rows(run(client, f"""
         SELECT COUNT(*) AS rows_, MIN(date) AS min_date, MAX(date) AS max_date,
                COUNT(DISTINCT dimension_type) AS dim_types
@@ -291,7 +291,7 @@ def main() -> None:
         ORDER BY dimension_type, dimension_value
     """), width=30)
 
-    section("8. GA4 UI daily totals vs Device rows (new table and old table)")
+    section("8. GA4 UI daily totals vs Site Total rows (new table) and Device rows (old table)")
     ui_rows = " UNION ALL ".join(
         f"SELECT DATE '{d}' AS date, {u} AS ui_users, {n} AS ui_new, {se} AS ui_sessions, {er} AS ui_er"
         for d, u, n, se, er in (line.split() for line in GA4_UI_DAILY.strip().splitlines())
@@ -301,7 +301,7 @@ def main() -> None:
         nt AS (
             SELECT date, SUM(users) AS users, SUM(new_users) AS new_users, SUM(sessions) AS sessions,
                    ROUND(100 * SAFE_DIVIDE(SUM(engagement_rate * sessions), SUM(sessions)), 1) AS er
-            FROM `{new}` WHERE dimension_type = 'Device' GROUP BY 1
+            FROM `{new}` WHERE dimension_type = 'Site Total' GROUP BY 1
         ),
         ot AS (
             SELECT date, SUM(users) AS users, SUM(sessions) AS sessions
@@ -338,6 +338,59 @@ def main() -> None:
             print(f"  OLD TABLE over {len(old_full)} days: users "
                   f"{pct(sum(r['old_users'] for r in old_full), sum(r['ui_users'] for r in old_full))}"
                   f" | sessions {pct(sum(r['old_sessions'] or 0 for r in old_full), sum(r['ui_sessions'] for r in old_full))}")
+
+    section("9. Date coverage of the reports the dashboard uses (last 365 days)")
+    needed = ["tech_device_category_report", "demographic_city_report", "pages_path_report",
+              "traffic_acquisition_session_campaign_report", "daily_site_totals"]
+    for name in needed:
+        print(f"\n  --- {name} ---")
+        print_rows(run(client, f"""
+            WITH days AS (
+                SELECT d FROM UNNEST(GENERATE_DATE_ARRAY(
+                    DATE_SUB(CURRENT_DATE('America/Los_Angeles'), INTERVAL 365 DAY),
+                    DATE_SUB(CURRENT_DATE('America/Los_Angeles'), INTERVAL 1 DAY))) AS d
+            ),
+            have AS (SELECT DISTINCT date FROM `{PROJECT}.{DATASET}.{name}`),
+            missing AS (
+                SELECT d, DATE_DIFF(d, DATE '2000-01-01', DAY)
+                          - ROW_NUMBER() OVER (ORDER BY d) AS grp
+                FROM days LEFT JOIN have ON have.date = days.d
+                WHERE have.date IS NULL
+            )
+            SELECT
+              (SELECT COUNT(*) FROM days) - (SELECT COUNT(*) FROM missing) AS days_present,
+              (SELECT COUNT(*) FROM missing) AS days_missing,
+              (SELECT MIN(date) FROM have) AS first_date,
+              (SELECT MAX(date) FROM have) AS last_date,
+              (SELECT STRING_AGG(r, ', ' ORDER BY r) FROM (
+                  SELECT CONCAT(CAST(MIN(d) AS STRING), '..', CAST(MAX(d) AS STRING),
+                                ' (', CAST(COUNT(*) AS STRING), 'd)') AS r
+                  FROM missing GROUP BY grp)) AS missing_ranges
+        """), width=400)
+
+    print("\n  --- daily_site_totals columns and sample ---")
+    print_rows(run(client, f"SELECT * FROM `{PROJECT}.{DATASET}.daily_site_totals` ORDER BY date DESC LIMIT 3"))
+
+    print("\n  --- daily_site_totals vs GA4 UI export ---")
+    sitecols = {r["column_name"] for r in run(client, f"""
+        SELECT column_name FROM `{PROJECT}.{DATASET}.INFORMATION_SCHEMA.COLUMNS`
+        WHERE table_name = 'daily_site_totals'""")}
+    if {"active_users", "new_users", "sessions"} <= sitecols:
+        print_rows(run(client, f"""
+            WITH ui AS ({ui_rows})
+            SELECT ui.date, ui.ui_users, t.active_users, ui.ui_new, t.new_users,
+                   ui.ui_sessions, t.sessions
+            FROM ui LEFT JOIN `{PROJECT}.{DATASET}.daily_site_totals` t USING (date)
+            ORDER BY ui.date
+        """))
+    else:
+        print(f"  (skipped: columns are {sorted(sitecols)})")
+
+    print("\n  --- Campaign rows in social_media.ga4_active_365d by month ---")
+    print_rows(run(client, f"""
+        SELECT FORMAT_DATE('%Y-%m', date) AS month, COUNT(*) AS rows_, SUM(users) AS users
+        FROM `{new}` WHERE dimension_type = 'Campaign' GROUP BY 1 ORDER BY 1
+    """))
 
     section("5. GA4 Airtable table: last 7 days by dimension_type")
     pat = os.getenv("AIRTABLE_PAT")
