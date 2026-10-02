@@ -173,6 +173,48 @@ def main() -> None:
                       WHERE date < CURRENT_DATE())
     """))
 
+    section("6. Raw Fivetran reports vs airtable_active_365d (last 7 days)")
+    print("\n  Properties synced:")
+    print_rows(run(client, f"SELECT name, display_name, time_zone FROM `{PROJECT}.{DATASET}.properties`"))
+    print("\n  Freshness of each Fivetran report (max date / last synced):")
+    for t in tables:
+        name = t["table_name"]
+        if name.endswith("_report"):
+            print_rows([{"table": name, **(run(client, f"""
+                SELECT MAX(date) AS max_date, MAX(_fivetran_synced) AS last_synced,
+                       COUNT(DISTINCT property) AS properties
+                FROM `{PROJECT}.{DATASET}.{name}`
+            """) or [{}])[0]}])
+    raw_checks = {
+        "tech_device_category_report": "device_category",
+        "pages_path_report": "page_path",
+        "demographic_city_report": "city",
+        "demographic_region_report": "region",
+        "demographic_country_report": "country",
+        "traffic_acquisition_session_campaign_report": "session_campaign_name",
+    }
+    for name, dim in raw_checks.items():
+        print(f"\n  --- {name}: per day (dup_keys = (date, property, {dim}) seen >1 time) ---")
+        print_rows(run(client, f"""
+            WITH t AS (
+                SELECT *, COUNT(*) OVER (PARTITION BY date, property, {dim}) AS n
+                FROM `{PROJECT}.{DATASET}.{name}`
+                WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+            )
+            SELECT date, COUNT(*) AS rows_, COUNT(DISTINCT {dim}) AS distinct_values,
+                   COUNTIF(n > 1) AS dup_rows, SUM(total_users) AS total_users,
+                   SUM(new_users) AS new_users
+            FROM t GROUP BY date ORDER BY date
+        """))
+    print("\n  --- tech_device_category_report raw rows for the most recent full day ---")
+    print_rows(run(client, f"""
+        SELECT date, property, device_category, total_users, new_users,
+               engaged_sessions, engagement_rate, key_events, _fivetran_synced
+        FROM `{PROJECT}.{DATASET}.tech_device_category_report`
+        WHERE date = DATE_SUB(CURRENT_DATE(), INTERVAL 2 DAY)
+        ORDER BY device_category
+    """))
+
     section("5. GA4 Airtable table: last 7 days by dimension_type")
     pat = os.getenv("AIRTABLE_PAT")
     base_id = os.getenv("AIRTABLE_BASE_ID")
