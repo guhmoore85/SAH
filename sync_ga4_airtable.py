@@ -308,6 +308,10 @@ def create_records_batch(table: Table, records: list[dict]) -> int:
     """
     Create records in Airtable in batches.
 
+    typecast=True lets Airtable add new single-select options (e.g. a new
+    dimension_type like 'Site Total') instead of rejecting the record --
+    without it, a new value fails mid-sync after every record was deleted.
+
     Returns:
         Number of records created
     """
@@ -318,7 +322,7 @@ def create_records_batch(table: Table, records: list[dict]) -> int:
 
     for i in range(0, total, BATCH_SIZE):
         batch = records[i : i + BATCH_SIZE]
-        retry_operation(table.batch_create, batch)
+        retry_operation(table.batch_create, batch, typecast=True)
         created += len(batch)
 
         # Progress update every 100 records or at the end
