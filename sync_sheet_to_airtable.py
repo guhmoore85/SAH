@@ -21,6 +21,7 @@ Environment variables:
     SYNC_MODE                    - "upsert" (default) or "replace"
     SYNC_KEY_FIELDS              - Comma-separated fields for upsert key (e.g. "type,name")
     ROW_LIMIT                    - (optional) Limit rows for testing
+    REMOVE_DUPLICATES            - (optional) "true" deletes extra records sharing a key (upsert)
 
 Usage:
     python sync_sheet_to_airtable.py
@@ -56,6 +57,8 @@ SYNC_KEY_FIELDS = [f.strip() for f in os.getenv("SYNC_KEY_FIELDS", "").split(","
 EXCLUDE_FIELDS = {f.strip() for f in os.getenv("EXCLUDE_FIELDS", "").split(",") if f.strip()}
 
 ROW_LIMIT = int(os.getenv("ROW_LIMIT") or 0) or None
+# Delete extra Airtable records that share a key with another record (upsert only)
+REMOVE_DUPLICATES = os.getenv("REMOVE_DUPLICATES", "false").lower() == "true"
 
 # Airtable API limit is 10 records per batch request
 BATCH_SIZE = 10
@@ -294,6 +297,36 @@ def fetch_existing_records(table) -> list[dict]:
     return records
 
 
+def split_duplicates(existing: list[dict], key_fields: list[str]) -> tuple[dict, list[str]]:
+    """Map each key to one existing record; return the other records' IDs.
+
+    When several records share a key, the last one in fetch order is kept --
+    the same record upsert_records has always matched and updated -- so the
+    copies returned are the ones no sync has been touching.
+    """
+    by_key: dict[tuple, dict] = {}
+    duplicate_ids: list[str] = []
+    for rec in existing:
+        key = _make_key(rec["fields"], key_fields)
+        if key in by_key:
+            duplicate_ids.append(by_key[key]["id"])
+        by_key[key] = {"id": rec["id"], "fields": rec["fields"]}
+    return by_key, duplicate_ids
+
+
+def delete_records(table, record_ids: list[str]) -> int:
+    """Delete the given Airtable records in batches with rate-limit sleeps."""
+    deleted = 0
+    for i in range(0, len(record_ids), BATCH_SIZE):
+        batch = record_ids[i : i + BATCH_SIZE]
+        retry_operation(table.batch_delete, batch)
+        deleted += len(batch)
+        if deleted % 1000 == 0 or deleted == len(record_ids):
+            logger.info("Deleted %d/%d records", deleted, len(record_ids))
+        time.sleep(BATCH_SLEEP)
+    return deleted
+
+
 def delete_all_records(table) -> int:
     """Delete all existing records from the Airtable table."""
     all_records = fetch_existing_records(table)
@@ -346,6 +379,7 @@ def upsert_records(
     key_fields: list[str],
     typecast: bool = False,
     prune_stale: bool = False,
+    remove_duplicates: bool = False,
 ) -> dict:
     """Upsert: update existing records that match on key_fields, insert new ones.
 
@@ -357,15 +391,23 @@ def upsert_records(
     scoped to a rolling window (e.g. "last 365 days"), so records that have
     aged out of that window get removed instead of accumulating forever.
 
-    Returns dict with counts: created, updated, skipped (unchanged), pruned.
+    remove_duplicates=True deletes extra existing records that share a key
+    with another record. Only one record per key is ever matched and
+    updated, so the extras otherwise sit untouched with stale values.
+
+    Returns dict with counts: created, updated, skipped (unchanged), pruned,
+    deduplicated.
     """
     existing = fetch_existing_records(table)
 
     # Build lookup: composite key → {airtable_record_id, fields}
-    existing_by_key = {}
-    for rec in existing:
-        key = _make_key(rec["fields"], key_fields)
-        existing_by_key[key] = {"id": rec["id"], "fields": rec["fields"]}
+    existing_by_key, duplicate_ids = split_duplicates(existing, key_fields)
+    if duplicate_ids and not remove_duplicates:
+        logger.warning(
+            "%d existing records duplicate another record's key and are never "
+            "updated; set REMOVE_DUPLICATES=true to delete them",
+            len(duplicate_ids),
+        )
 
     to_create = []
     to_update = []
@@ -402,6 +444,11 @@ def upsert_records(
     # new_records at all) BEFORE creating new ones -- if the table is
     # already at or over Airtable's per-base record cap, batch_create fails
     # outright until space is freed, so pruning has to happen first.
+    deduplicated = 0
+    if remove_duplicates and duplicate_ids:
+        logger.info("Deleting %d duplicate records...", len(duplicate_ids))
+        deduplicated = delete_records(table, duplicate_ids)
+
     pruned = 0
     if prune_stale and existing_by_key:
         stale_ids = [rec["id"] for rec in existing_by_key.values()]
@@ -433,7 +480,10 @@ def upsert_records(
             logger.info("Updated %d/%d existing records", updated, len(to_update))
         time.sleep(BATCH_SLEEP)
 
-    return {"created": created, "updated": updated, "skipped": skipped, "pruned": pruned}
+    return {
+        "created": created, "updated": updated, "skipped": skipped,
+        "pruned": pruned, "deduplicated": deduplicated,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -459,6 +509,7 @@ def sync() -> dict[str, Any]:
         "records_created": 0,
         "records_updated": 0,
         "records_skipped": 0,
+        "records_deduplicated": 0,
         "errors": [],
         "success": False,
     }
@@ -525,7 +576,10 @@ def sync() -> dict[str, Any]:
             records = [{k: v for k, v in r.items() if k not in drop_fields} for r in records]
 
         if SYNC_MODE == "upsert":
-            result = upsert_records(airtable_table, records, SYNC_KEY_FIELDS)
+            result = upsert_records(
+                airtable_table, records, SYNC_KEY_FIELDS, remove_duplicates=REMOVE_DUPLICATES
+            )
+            stats["records_deduplicated"] = result["deduplicated"]
             stats["records_created"] = result["created"]
             stats["records_updated"] = result["updated"]
             stats["records_skipped"] = result["skipped"]
@@ -556,6 +610,7 @@ def sync() -> dict[str, Any]:
             logger.info("  Records created: %d", stats["records_created"])
             logger.info("  Records updated: %d", stats["records_updated"])
             logger.info("  Records skipped: %d (unchanged)", stats["records_skipped"])
+            logger.info("  Duplicates removed: %d", stats["records_deduplicated"])
         else:
             logger.info("  Records deleted: %d", stats["records_deleted"])
             logger.info("  Records created: %d", stats["records_created"])

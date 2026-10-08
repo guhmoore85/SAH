@@ -1,0 +1,44 @@
+name: Dedupe EveryAction Airtable Records
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Delete the extra copies ("false" = dry run, report only)'
+        required: true
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+
+# Never run alongside the daily sync, which writes to the same table
+concurrency:
+  group: everyaction-airtable-sync
+  cancel-in-progress: false
+
+jobs:
+  dedupe:
+    runs-on: ubuntu-latest
+    # ~55k deletes at 10 per request take ~40 minutes
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Dedupe EveryAction Airtable table
+        timeout-minutes: 110
+        run: python dedupe_airtable_records.py ${{ github.event.inputs.apply == 'true' && '--apply' || '' }}
+        env:
+          AIRTABLE_PAT: ${{ secrets.AIRTABLE_PAT }}
+          AIRTABLE_BASE_ID: ${{ secrets.EVERYACTION_AIRTABLE_BASE_ID }}
+          AIRTABLE_TABLE_ID: ${{ secrets.EVERYACTION_AIRTABLE_TABLE_ID }}
+          SYNC_KEY_FIELDS: type,name
