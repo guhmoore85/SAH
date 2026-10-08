@@ -10,10 +10,13 @@ sources:
 
   - name: fivetran_facebook
     database: stopaapihate-472516
-    schema: social_media_reporting_facebook_pages
+    schema: facebook_pages_facebook_pages
     tables:
       - name: facebook_pages__posts_report
-        description: Fivetran-managed Facebook page post metrics
+        description: >
+          Fivetran-managed Facebook page post metrics. Previously read from
+          social_media_reporting_facebook_pages, which stopped updating on
+          2026-04-01; this schema is current.
 
   - name: fivetran_instagram
     database: stopaapihate-472516

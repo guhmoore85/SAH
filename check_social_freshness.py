@@ -49,7 +49,7 @@ def get_client() -> bigquery.Client:
 
 
 QUERIES = {
-    "OLD: social_media_reporting_facebook_pages.facebook_pages__posts_report (sources.yml today)": f"""
+    "OLD: social_media_reporting_facebook_pages.facebook_pages__posts_report (stale since 2026-04-01)": f"""
         SELECT MAX(date_day) AS max_date, COUNT(*) AS row_count
         FROM `{PROJECT}.social_media_reporting_facebook_pages.facebook_pages__posts_report`
     """,
@@ -57,7 +57,7 @@ QUERIES = {
         SELECT MAX(created_timestamp) AS max_date, COUNT(*) AS row_count
         FROM `{PROJECT}.social_media_reporting_instagram_business.instagram_business__posts`
     """,
-    "NEW: facebook_pages_facebook_pages.facebook_pages__posts_report (from the 2026-09-25 dbt run)": f"""
+    "NEW: facebook_pages_facebook_pages.facebook_pages__posts_report (sources.yml today)": f"""
         SELECT MAX(date_day) AS max_date, COUNT(*) AS row_count
         FROM `{PROJECT}.facebook_pages_facebook_pages.facebook_pages__posts_report`
     """,
