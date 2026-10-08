@@ -26,6 +26,7 @@ Reads:
 import json
 import os
 from collections import Counter
+from datetime import date, datetime
 
 import gspread
 from google.cloud import bigquery
@@ -152,6 +153,16 @@ def describe_sheet(gc: gspread.Client, sheet_id: str) -> gspread.Spreadsheet | N
     return sheet
 
 
+def parse_sheet_date(value: str) -> date | None:
+    """Sheets renders dates as M/D/YYYY; compare them as dates, not strings."""
+    for fmt in ("%m/%d/%Y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(value.strip(), fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
 def describe_extract_tab(sheet: gspread.Spreadsheet, tab: str) -> None:
     """Show the extract's own refresh state and what rows it actually holds."""
     print("=" * 70)
@@ -193,7 +204,8 @@ def describe_extract_tab(sheet: gspread.Spreadsheet, tab: str) -> None:
         print(f"  rows by type: {dict(Counter(r[col['type']] for r in rows if len(r) > col['type']))}")
     for date_col in ("first_date", "last_date"):
         if date_col in col:
-            dates = sorted(r[col[date_col]] for r in rows if len(r) > col[date_col] and r[col[date_col]])
+            dates = sorted(filter(None, (parse_sheet_date(r[col[date_col]])
+                                         for r in rows if len(r) > col[date_col])))
             if dates:
                 print(f"  {date_col}: min={dates[0]} max={dates[-1]}")
     print()
