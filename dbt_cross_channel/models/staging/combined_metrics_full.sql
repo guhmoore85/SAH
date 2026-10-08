@@ -4,8 +4,13 @@
 {{ config(materialized='table') }}
 
 with facebook as (
+    -- Fivetran's posts_report has one row per post per day, each carrying the
+    -- post's lifetime totals as of that day. Keep only the latest snapshot so
+    -- Facebook is one row per post like Instagram/TikTok (otherwise ~96k rows
+    -- for ~1.3k posts, and summed metrics are inflated). `date` is the post's
+    -- created date, matching the other platforms and the DAYS_BACK windows.
     select
-        cast(date_day as date)                          as date,
+        cast(created_timestamp as date)                 as date,
         'Facebook'                                      as platform,
         'Post'                                          as content_type,
         page_name                                       as account_name,
@@ -36,6 +41,11 @@ with facebook as (
         source_relation
 
     from {{ source('fivetran_facebook', 'facebook_pages__posts_report') }}
+    where true  -- BigQuery requires a WHERE/GROUP BY/HAVING alongside QUALIFY
+    qualify row_number() over (
+        partition by page_id, post_id
+        order by date_day desc
+    ) = 1
 ),
 
 instagram as (
