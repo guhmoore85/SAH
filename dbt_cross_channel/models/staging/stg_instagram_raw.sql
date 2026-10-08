@@ -16,15 +16,22 @@
 -- Stories are excluded: ephemeral (gone after 24h), and their insights
 -- use a different metric shape (story_*) than feed/reel/carousel posts.
 
+-- Both raw tables keep a new version of each post on every Fivetran sync,
+-- so each is reduced to its latest version before the join; otherwise the
+-- join multiplies versions together (~73k rows for ~1.8k posts).
+
 with media as (
     select *
     from {{ source('instagram_business', 'media_history') }}
     where coalesce(media_product_type, '') != 'STORY'
+    qualify row_number() over (partition by id order by _fivetran_synced desc) = 1
 ),
 
 insights as (
     select *
     from {{ source('instagram_business', 'media_insights') }}
+    where true  -- BigQuery requires a WHERE/GROUP BY/HAVING alongside QUALIFY
+    qualify row_number() over (partition by id order by _fivetran_synced desc) = 1
 )
 
 select
