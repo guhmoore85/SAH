@@ -322,6 +322,21 @@ def download_csv_from_url(url: str, report_key: str) -> tuple[str, bytes] | None
         log.error("Failed to download CSV from %s: %s", url, exc)
         return None
 
+    # An expired report link still answers 200 with an HTML page (a sign-in
+    # page). Parsed as CSV, that page loaded 1361 "records" for every day from
+    # 2026-04-27 to 2026-07-22 when a backlog was caught up on 2026-08-21, and
+    # the emails were then labeled processed. Refuse anything that isn't CSV
+    # so the email stays unprocessed and the run reports the failure.
+    content_type = resp.headers.get("Content-Type", "").lower()
+    head = resp.content[:512].lstrip(b"\xef\xbb\xbf").lstrip().lower()
+    if "text/html" in content_type or head.startswith((b"<!doctype", b"<html")):
+        log.error(
+            "Download from %s returned an HTML page, not a CSV (Content-Type %r); "
+            "the report link has likely expired",
+            url, content_type,
+        )
+        return None
+
     # Determine filename from Content-Disposition header, URL, or report key
     filename = None
     cd = resp.headers.get("Content-Disposition", "")
