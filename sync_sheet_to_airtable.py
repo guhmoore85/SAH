@@ -22,6 +22,7 @@ Environment variables:
     SYNC_KEY_FIELDS              - Comma-separated fields for upsert key (e.g. "type,name")
     ROW_LIMIT                    - (optional) Limit rows for testing
     REMOVE_DUPLICATES            - (optional) "true" deletes extra records sharing a key (upsert)
+    PRUNE_STALE                  - (optional) "true" deletes records whose key isn't in the sheet (upsert)
 
 Usage:
     python sync_sheet_to_airtable.py
@@ -59,6 +60,8 @@ EXCLUDE_FIELDS = {f.strip() for f in os.getenv("EXCLUDE_FIELDS", "").split(",") 
 ROW_LIMIT = int(os.getenv("ROW_LIMIT") or 0) or None
 # Delete extra Airtable records that share a key with another record (upsert only)
 REMOVE_DUPLICATES = os.getenv("REMOVE_DUPLICATES", "false").lower() == "true"
+# Delete Airtable records whose key is no longer in the sheet (upsert only)
+PRUNE_STALE = os.getenv("PRUNE_STALE", "false").lower() == "true"
 
 # Airtable API limit is 10 records per batch request
 BATCH_SIZE = 10
@@ -510,6 +513,7 @@ def sync() -> dict[str, Any]:
         "records_updated": 0,
         "records_skipped": 0,
         "records_deduplicated": 0,
+        "records_pruned": 0,
         "errors": [],
         "success": False,
     }
@@ -577,8 +581,10 @@ def sync() -> dict[str, Any]:
 
         if SYNC_MODE == "upsert":
             result = upsert_records(
-                airtable_table, records, SYNC_KEY_FIELDS, remove_duplicates=REMOVE_DUPLICATES
+                airtable_table, records, SYNC_KEY_FIELDS,
+                remove_duplicates=REMOVE_DUPLICATES, prune_stale=PRUNE_STALE,
             )
+            stats["records_pruned"] = result["pruned"]
             stats["records_deduplicated"] = result["deduplicated"]
             stats["records_created"] = result["created"]
             stats["records_updated"] = result["updated"]
@@ -611,6 +617,7 @@ def sync() -> dict[str, Any]:
             logger.info("  Records updated: %d", stats["records_updated"])
             logger.info("  Records skipped: %d (unchanged)", stats["records_skipped"])
             logger.info("  Duplicates removed: %d", stats["records_deduplicated"])
+            logger.info("  Stale pruned:    %d", stats["records_pruned"])
         else:
             logger.info("  Records deleted: %d", stats["records_deleted"])
             logger.info("  Records created: %d", stats["records_created"])

@@ -19,6 +19,12 @@ on:
         default: 'upsert'
         type: choice
         options: ['upsert', 'replace']
+      prune_stale:
+        description: 'Delete Airtable rows whose (_email_date, source_table) is no longer in the dailys tab'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
 
 concurrency:
   group: daily-totals-airtable-sync
@@ -54,6 +60,7 @@ jobs:
           GOOGLE_SHEET_TAB: dailys
           SYNC_MODE: ${{ github.event.inputs.sync_mode || 'upsert' }}
           SYNC_KEY_FIELDS: _email_date,source_table
+          PRUNE_STALE: ${{ github.event.inputs.prune_stale || 'false' }}
           ROW_LIMIT: ${{ github.event.inputs.row_limit || '0' }}
 
       - name: Generate sync summary

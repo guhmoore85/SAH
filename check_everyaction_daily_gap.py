@@ -271,6 +271,15 @@ def main() -> None:
             print(f"  download test, email from {probe}: {try_link(gmail, emails[probe][0]['id'])}")
         print()
 
+    view_days: dict[str, set[date]] = {}
+    for row in bq.query(f"""
+        SELECT source_table, _email_date AS d
+        FROM `{BQ_PROJECT}.{BQ_DATASET}.daily_totals`
+        WHERE _email_date >= '{SINCE}'
+    """).result():
+        view_days.setdefault(row.source_table, set()).add(row.d)
+    report_copy("DBT VIEW everyaction_reports.daily_totals: days per source_table", view_days, all_days)
+
     check_dailys_tab(all_days)
     check_daily_totals_airtable(all_days)
 
