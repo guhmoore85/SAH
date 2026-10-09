@@ -18,7 +18,11 @@ select
     month_name,
 
     -- Universal metrics
-    coalesce(reach, 0)              as reach_or_impressions,
+    -- Meta retired post impressions (Instagram, Graph API v22) and Facebook
+    -- post reach (v25) in favour of views. Use true reach where the platform
+    -- still reports it (Instagram), else the platform's own audience figure:
+    -- TikTok's reach (stored as impressions), Facebook's media views.
+    coalesce(reach, impressions, media_views, 0) as reach_or_impressions,
     coalesce(total_engagement, 0)   as engagement,
     engagement_rate,
     coalesce(clicks, 0)             as clicks,

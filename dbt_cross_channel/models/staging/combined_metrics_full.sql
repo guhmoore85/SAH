@@ -72,7 +72,7 @@ instagram as (
         cast(null as int64)                             as shares,
         cast(null as int64)                             as saves,
         cast(coalesce(carousel_album_impressions, story_impressions, video_photo_impressions) as int64) as impressions,
-        cast(null as int64)                             as reach,
+        cast(reach as int64)                            as reach,
         cast(null as int64)                             as media_views,
         cast(coalesce(video_photo_views, reel_views, carousel_album_video_views) as int64) as video_views,
 
