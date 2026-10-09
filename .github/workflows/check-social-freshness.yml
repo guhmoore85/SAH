@@ -54,3 +54,7 @@ jobs:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           BQ_PROJECT: stopaapihate-472516
           BQ_DATASET: everyaction_reports
+          EVERYACTION_GOOGLE_SHEET_ID: ${{ secrets.EVERYACTION_GOOGLE_SHEET_ID }}
+          AIRTABLE_PAT: ${{ secrets.AIRTABLE_PAT }}
+          AIRTABLE_BASE_ID: ${{ secrets.EVERYACTION_AIRTABLE_BASE_ID }}
+          DAILY_TOTALS_AIRTABLE_TABLE_ID: ${{ secrets.DAILY_TOTALS_AIRTABLE_TABLE_ID }}
