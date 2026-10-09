@@ -1,8 +1,18 @@
 name: Dedupe EveryAction Airtable Records
 
+# Removes extra copies of records that share a sync key, keeping the copy
+# the sync updates. Despite the file name it covers every upsert-synced
+# table; pick one with the `table` input.
+
 on:
   workflow_dispatch:
     inputs:
+      table:
+        description: 'Airtable table to dedupe'
+        required: true
+        default: 'everyaction_campaigns'
+        type: choice
+        options: ['everyaction_campaigns', 'digital_master', 'combined_social']
       apply:
         description: 'Delete the extra copies ("false" = dry run, report only)'
         required: true
@@ -10,9 +20,8 @@ on:
         type: choice
         options: ['false', 'true']
 
-# Never run alongside the daily sync, which writes to the same table
 concurrency:
-  group: everyaction-airtable-sync
+  group: airtable-dedupe-${{ github.event.inputs.table }}
   cancel-in-progress: false
 
 jobs:
@@ -34,11 +43,14 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Dedupe EveryAction Airtable table
+      - name: Dedupe ${{ github.event.inputs.table }}
         timeout-minutes: 110
         run: python dedupe_airtable_records.py ${{ github.event.inputs.apply == 'true' && '--apply' || '' }}
         env:
           AIRTABLE_PAT: ${{ secrets.AIRTABLE_PAT }}
-          AIRTABLE_BASE_ID: ${{ secrets.EVERYACTION_AIRTABLE_BASE_ID }}
-          AIRTABLE_TABLE_ID: ${{ secrets.EVERYACTION_AIRTABLE_TABLE_ID }}
-          SYNC_KEY_FIELDS: type,name
+          # Digital_master and Combined_social live in SAH_Social_2026; their IDs
+          # match the defaults in sync_digital_master_to_airtable.py and
+          # sync_combined_social_to_airtable.py.
+          AIRTABLE_BASE_ID: ${{ github.event.inputs.table == 'everyaction_campaigns' && secrets.EVERYACTION_AIRTABLE_BASE_ID || 'appEYxbed1rP9wyUq' }}
+          AIRTABLE_TABLE_ID: ${{ github.event.inputs.table == 'everyaction_campaigns' && secrets.EVERYACTION_AIRTABLE_TABLE_ID || (github.event.inputs.table == 'digital_master' && 'tblvC0c2uFOgX5w54' || 'tbl5WCOhWD0c8tum5') }}
+          SYNC_KEY_FIELDS: ${{ github.event.inputs.table == 'everyaction_campaigns' && 'type,name' || (github.event.inputs.table == 'digital_master' && 'channel,subchannel,date,content_name' || 'platform,post_id') }}
