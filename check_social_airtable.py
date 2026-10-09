@@ -86,6 +86,35 @@ def main() -> None:
     print()
 
     print("=" * 70)
+    print("Records with a value in each field, by channel")
+    print("=" * 70)
+    filled: dict = {}
+    for r in records:
+        ch = r["fields"].get("channel")
+        for f, v in r["fields"].items():
+            if v not in (None, ""):
+                filled.setdefault(f, Counter())[ch] += 1
+    for f in sorted(filled):
+        print(f"  {f}: {dict(filled[f].most_common())}")
+    print()
+
+    # Range of each numeric field per channel, to spot unit problems
+    # (e.g. milliseconds where seconds are expected).
+    print("=" * 70)
+    print("Numeric field ranges by channel (min / median / max)")
+    print("=" * 70)
+    values: dict = {}
+    for r in records:
+        ch = r["fields"].get("channel")
+        for f, v in r["fields"].items():
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                values.setdefault((f, ch), []).append(v)
+    for (f, ch), vs in sorted(values.items(), key=lambda kv: (kv[0][0], str(kv[0][1]))):
+        vs.sort()
+        print(f"  {f} [{ch}]: {vs[0]} / {vs[len(vs) // 2]} / {vs[-1]}  (n={len(vs)})")
+    print()
+
+    print("=" * 70)
     print("Sample record (first)")
     print("=" * 70)
     if records:
