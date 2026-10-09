@@ -52,6 +52,8 @@ select
     i.video_photo_views,
     i.reel_views,
     i.carousel_album_views                                                 as carousel_album_video_views,
+    -- Unique accounts reached; one of these is filled per media type
+    coalesce(i.reel_reach, i.carousel_album_reach, i.video_photo_reach)    as reach,
 
     cast(null as string)                                                   as source_relation
 
