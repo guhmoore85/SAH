@@ -1,9 +1,11 @@
 name: Sync EveryAction to Airtable
 
 on:
-  # Run daily at 6:30 AM UTC (30 minutes after BigQuery refresh at 6:00 AM)
+  # Daily at 11:30 AM UTC: after the weekly-report import (8:10 AM) and the
+  # everyaction_master sheet's daily scheduled refresh (set it for ~10-11 AM
+  # UTC in Sheets), so the sync reads the sheet after it has the new rows.
   schedule:
-    - cron: '30 6 * * *'
+    - cron: '30 11 * * *'
 
   # Allow manual trigger from GitHub UI
   workflow_dispatch:

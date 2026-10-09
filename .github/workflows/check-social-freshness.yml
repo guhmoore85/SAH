@@ -43,3 +43,14 @@ jobs:
           AIRTABLE_PAT: ${{ secrets.AIRTABLE_PAT }}
           AIRTABLE_BASE_ID: ${{ secrets.EVERYACTION_AIRTABLE_BASE_ID }}
           AIRTABLE_TABLE_ID: ${{ secrets.EVERYACTION_AIRTABLE_TABLE_ID }}
+
+      - name: Find missing days in EveryAction daily counts (read-only)
+        if: always()
+        run: python check_everyaction_daily_gap.py
+        env:
+          GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          BQ_PROJECT: stopaapihate-472516
+          BQ_DATASET: everyaction_reports
