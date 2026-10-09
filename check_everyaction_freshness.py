@@ -57,6 +57,12 @@ def get_credentials() -> service_account.Credentials:
     raise RuntimeError("Set GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_SERVICE_ACCOUNT_FILE")
 
 
+def _date_sql(col: str) -> str:
+    """Parse an EveryAction CSV date column the same way the dbt staging models do."""
+    return (f"COALESCE(SAFE.PARSE_DATE('%m/%d/%y', CAST({col} AS STRING)), "
+            f"SAFE.PARSE_DATE('%m/%d/%Y', CAST({col} AS STRING)), SAFE_CAST({col} AS DATE))")
+
+
 QUERIES = {
     "RAW: everyaction_reports.email_comparison (weekly Gmail CSV loads)": f"""
         SELECT MAX(_import_timestamp) AS last_import, COUNT(*) AS row_count,
@@ -66,6 +72,20 @@ QUERIES = {
     "RAW: everyaction_reports.forms_report (weekly Gmail CSV loads)": f"""
         SELECT MAX(_import_timestamp) AS last_import, COUNT(*) AS row_count
         FROM `{PROJECT}.everyaction_reports.forms_report`
+    """,
+    "RAW: newest email in each Email Comparison Report load (is the lag in the report itself?)": f"""
+        SELECT DATE(_import_timestamp) AS loaded_on, COUNT(*) AS emails,
+               MAX({_date_sql('first_sent_date')}) AS newest_first_sent,
+               MAX({_date_sql('last_sent_date')}) AS newest_last_sent
+        FROM `{PROJECT}.everyaction_reports.email_comparison`
+        GROUP BY loaded_on ORDER BY loaded_on DESC LIMIT 6
+    """,
+    "RAW: newest form activity in each Forms report load": f"""
+        SELECT DATE(_import_timestamp) AS loaded_on, COUNT(*) AS forms,
+               MAX({_date_sql('first_submission_date')}) AS newest_first_submission,
+               MAX({_date_sql('last_submission_date')}) AS newest_last_submission
+        FROM `{PROJECT}.everyaction_reports.forms_report`
+        GROUP BY loaded_on ORDER BY loaded_on DESC LIMIT 6
     """,
     "RAW: daily list-count tables (max report_date)": f"""
         SELECT 'daily_full_list' AS tbl, MAX(report_date) AS max_report_date
