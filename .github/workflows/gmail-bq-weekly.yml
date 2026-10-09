@@ -2,8 +2,11 @@ name: "Gmail → BigQuery (Weekly Reports)"
 
 on:
   schedule:
-    # Every Monday at 9 AM UTC
-    - cron: "0 9 * * 1"
+    # Daily at 9:10 AM UTC. EveryAction sends the weekly Email Comparison
+    # and Forms reports on different days (seen Thursday and Friday), and a
+    # Monday-only run left them unloaded for days. Only emails without the
+    # BQ-Processed label are loaded, so days with no new report are no-ops.
+    - cron: "10 9 * * *"
   workflow_dispatch:
     inputs:
       mode:
