@@ -88,6 +88,7 @@ NEW_NUMBER_FIELDS = {
     "saves": 0,
     "clicks": 0,
     "video_views": 0,
+    "avg_watch_time_seconds": 1,
 }
 
 # cross_channel_all_items's channel_group values (Social, Web, Email, Forms)
@@ -172,7 +173,8 @@ def map_row(row: dict[str, Any]) -> dict[str, Any]:
         Digital_master's original 16 fields -- add an "engagements"
         (Number) field in Airtable for this to actually populate;
         until then it's silently dropped like any other unknown field
-      - impressions, likes, comments, shares, saves, clicks, video_views:
+      - impressions, likes, comments, shares, saves, clicks, video_views,
+        avg_watch_time_seconds:
         the social columns, passed through as-is (social_impressions for
         impressions). clicks is also in action_takers for back-compat
       - website_new_users, key_events: GA4's new users and key events
@@ -220,6 +222,7 @@ def map_row(row: dict[str, Any]) -> dict[str, Any]:
         "action_takers": row.get("clicks"),
         "engagements": row.get("engagement"),
         "video_views": row.get("video_views"),
+        "avg_watch_time_seconds": row.get("avg_watch_time_seconds"),
         "impressions": row.get("social_impressions"),
         "likes": row.get("likes"),
         "comments": row.get("comments"),
