@@ -74,6 +74,11 @@ models:
         description: GA4 only (raw decimal, not ×100)
       - name: website_key_events
         description: GA4 only
+      - name: website_engagement_seconds
+        description: >
+          GA4 only -- total user engagement time in seconds. Not reported
+          for Device and Location rows. Divide by website_users for
+          average engagement time per user.
       - name: ga4_dimension_type
         description: GA4 only — Page, Location, Campaign, Device
       - name: recipients

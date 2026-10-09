@@ -44,6 +44,7 @@ select
     cast(null as int64)             as website_sessions,
     cast(null as float64)           as website_engagement_rate,
     cast(null as int64)             as website_key_events,
+    cast(null as int64)             as website_engagement_seconds,
     cast(null as string)            as ga4_dimension_type,
 
     -- Email-specific (null)

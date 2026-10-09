@@ -18,6 +18,12 @@ on:
         description: 'Rolling window in days (leave blank for default: 180)'
         required: false
         default: ''
+      create_missing_fields:
+        description: 'Create missing Number fields (likes, impressions, video_views, ...) in Airtable first'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
 
 # Prevent overlapping sync runs -- a cancelled or still-finishing run can
 # keep writing to Airtable after being "cancelled" (GitHub Actions
@@ -61,3 +67,4 @@ jobs:
           SYNC_MODE: ${{ inputs.sync_mode || 'upsert' }}
           ROW_LIMIT: ${{ inputs.row_limit || '' }}
           DAYS_BACK: ${{ inputs.days_back || '' }}
+          CREATE_MISSING_FIELDS: ${{ inputs.create_missing_fields || 'false' }}
