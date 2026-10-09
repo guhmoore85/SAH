@@ -28,6 +28,13 @@ jobs:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           BQ_PROJECT: stopaapihate-472516
 
+      - name: Find follower-count columns (read-only)
+        if: always()
+        run: python check_follower_sources.py
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          BQ_PROJECT: stopaapihate-472516
+
       - name: Run EveryAction + Google Sheets freshness check
         if: always()
         run: python check_everyaction_freshness.py
