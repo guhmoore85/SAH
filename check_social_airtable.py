@@ -101,11 +101,11 @@ def main() -> None:
     # Range of each numeric field per channel, to spot unit problems
     # (e.g. milliseconds where seconds are expected).
     print("=" * 70)
-    print("Numeric field ranges by channel (min / median / max)")
+    print("Numeric field ranges by channel / subchannel (min / median / max)")
     print("=" * 70)
     values: dict = {}
     for r in records:
-        ch = r["fields"].get("channel")
+        ch = f'{r["fields"].get("channel")} / {r["fields"].get("subchannel") or r["fields"].get("platform")}'
         for f, v in r["fields"].items():
             if isinstance(v, (int, float)) and not isinstance(v, bool):
                 values.setdefault((f, ch), []).append(v)
