@@ -54,6 +54,7 @@ select
     sessions                        as website_sessions,
     engagement_rate                 as website_engagement_rate,
     key_events                      as website_key_events,
+    user_engagement_duration        as website_engagement_seconds,
     dimension_type                  as ga4_dimension_type,
 
     -- Email-specific (null)

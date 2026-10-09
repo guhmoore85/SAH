@@ -28,6 +28,8 @@ Environment variables:
     SYNC_MODE                    - "upsert" (default, self-pruning) or "replace"
     DAYS_BACK                    - default: 180; rolling window on `date`
     ROW_LIMIT                    - (optional) limit rows for testing
+    CREATE_MISSING_FIELDS        - "true" to create the Number fields in
+                                   NEW_NUMBER_FIELDS that the table lacks
 
 Usage:
     python sync_digital_master_to_airtable.py
@@ -69,6 +71,24 @@ SYNC_KEY_FIELDS = [
 ]
 ROW_LIMIT = int(os.getenv("ROW_LIMIT") or 0) or None
 DAYS_BACK = int(os.getenv("DAYS_BACK") or 180)
+CREATE_MISSING_FIELDS = os.getenv("CREATE_MISSING_FIELDS", "").lower() == "true"
+
+# Fields map_row() writes that Digital_master didn't originally have, with
+# their Number precision. Created only when CREATE_MISSING_FIELDS=true.
+NEW_NUMBER_FIELDS = {
+    "engagements": 0,
+    "website_users": 0,
+    "website_new_users": 0,
+    "key_events": 0,
+    "avg_engagement_seconds": 1,
+    "impressions": 0,
+    "likes": 0,
+    "comments": 0,
+    "shares": 0,
+    "saves": 0,
+    "clicks": 0,
+    "video_views": 0,
+}
 
 # cross_channel_all_items's channel_group values (Social, Web, Email, Forms)
 # don't match Digital_master's own channel values -- map them here rather
@@ -152,9 +172,16 @@ def map_row(row: dict[str, Any]) -> dict[str, Any]:
         Digital_master's original 16 fields -- add an "engagements"
         (Number) field in Airtable for this to actually populate;
         until then it's silently dropped like any other unknown field
-      - video_views: video_views, passed through as-is (social-only).
-        Not one of Digital_master's original 16 fields -- add a
-        "video_views" (Number) field in Airtable for this to populate
+      - impressions, likes, comments, shares, saves, clicks, video_views:
+        the social columns, passed through as-is (social_impressions for
+        impressions). clicks is also in action_takers for back-compat
+      - website_new_users, key_events: GA4's new users and key events
+      - avg_engagement_seconds: GA4 engagement time / users, computed
+        here. Null on Device and Location rows, where GA4's reports
+        don't include engagement time
+      - Every field above that isn't one of Digital_master's original 16
+        is dropped until the field exists in Airtable; CREATE_MISSING_FIELDS
+        =true creates them as Number fields (see NEW_NUMBER_FIELDS)
       - amount_raised: revenue
       - avg_contribution: computed here (revenue / contributions) since
         cross_channel_all_items has no equivalent column
@@ -168,6 +195,12 @@ def map_row(row: dict[str, Any]) -> dict[str, Any]:
     avg_contribution = None
     if revenue is not None and contributions:
         avg_contribution = revenue / contributions
+
+    avg_engagement_seconds = None
+    engagement_seconds = row.get("website_engagement_seconds")
+    users = row.get("website_users")
+    if engagement_seconds is not None and users:
+        avg_engagement_seconds = round(engagement_seconds / users, 1)
 
     row_date = row.get("date")
     days_ago = None
@@ -187,6 +220,15 @@ def map_row(row: dict[str, Any]) -> dict[str, Any]:
         "action_takers": row.get("clicks"),
         "engagements": row.get("engagement"),
         "video_views": row.get("video_views"),
+        "impressions": row.get("social_impressions"),
+        "likes": row.get("likes"),
+        "comments": row.get("comments"),
+        "shares": row.get("shares"),
+        "saves": row.get("saves"),
+        "clicks": row.get("clicks") if channel_group == "Social" else None,
+        "website_new_users": row.get("website_new_users"),
+        "key_events": row.get("website_key_events"),
+        "avg_engagement_seconds": avg_engagement_seconds,
         "contributions": contributions,
         "amount_raised": revenue,
         "year": row.get("year"),
@@ -196,6 +238,18 @@ def map_row(row: dict[str, Any]) -> dict[str, Any]:
         "avg_contribution": avg_contribution,
     }
     return {k: _coerce_bq_value(v) for k, v in mapped.items() if v is not None}
+
+
+def create_missing_fields(table) -> None:
+    """Create any NEW_NUMBER_FIELDS missing from the table as Number fields."""
+    existing = {f.name for f in table.schema(force=True).fields}
+    for name, precision in NEW_NUMBER_FIELDS.items():
+        if name in existing:
+            continue
+        logger.info("Creating Number field %r in Airtable", name)
+        table.create_field(name, "number", options={"precision": precision})
+    # Refresh the cached schema so the field filter in sync() sees the new fields
+    table.schema(force=True)
 
 
 def read_cross_channel_items(client: bigquery.Client) -> list[dict[str, Any]]:
@@ -250,6 +304,9 @@ def sync() -> dict[str, Any]:
 
         if not records:
             raise ValueError("No records read from BigQuery")
+
+        if CREATE_MISSING_FIELDS:
+            create_missing_fields(airtable_table)
 
         # Drop any fields that don't exist as columns in the Airtable table
         valid_fields = get_airtable_field_names(airtable_table)
