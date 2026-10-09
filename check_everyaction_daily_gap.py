@@ -101,6 +101,37 @@ def ranges(days: list[date]) -> list[str]:
     return out
 
 
+def count_runs(client, table: str) -> None:
+    """Collapse consecutive days that share a record_count, with load metadata.
+
+    A count that stays identical for weeks means the loaded file wasn't that
+    day's real report (e.g. an expired link served the same stub file).
+    """
+    sql = f"""
+        SELECT DATE(TIMESTAMP(_email_date)) AS d, record_count,
+               DATE(_import_timestamp) AS loaded_on, _source_filename AS file
+        FROM `{BQ_PROJECT}.{BQ_DATASET}.{table}`
+        WHERE record_count > 1 AND DATE(TIMESTAMP(_email_date)) >= '{SINCE}'
+        QUALIFY ROW_NUMBER() OVER (PARTITION BY DATE(TIMESTAMP(_email_date))
+                                   ORDER BY _import_timestamp DESC) = 1
+        ORDER BY d
+    """
+    runs: list[list] = []
+    for row in client.query(sql).result():
+        if runs and runs[-1][2] == row.record_count:
+            runs[-1][1] = row.d
+            runs[-1][3].add(row.loaded_on)
+            runs[-1][4].add(row.file)
+        else:
+            runs.append([row.d, row.d, row.record_count, {row.loaded_on}, {row.file}])
+    print(f"  record_count runs (days sharing one value; >2 days flagged):")
+    for start, end, count, loaded, files in runs:
+        days = (end - start).days + 1
+        flag = "  <-- SAME VALUE" if days > 2 else ""
+        print(f"    {start}..{end} ({days}d): {count}  loaded {sorted(loaded)[0]}..{sorted(loaded)[-1]}"
+              f"  files={len(files)} e.g. {sorted(files)[0]}{flag}")
+
+
 def try_link(service, msg_id: str) -> str:
     url = _extract_download_url(_get_email_body_html(service, msg_id))
     if not url:
@@ -231,9 +262,13 @@ def main() -> None:
         print(f"  BQ days by month:      {dict(sorted(Counter(d.strftime('%Y-%m') for d in have).items()))}")
         print(f"  missing, email exists: {ranges(missing_with_email) or 'none'}")
         print(f"  missing, no email:     {ranges(missing_no_email) or 'none'}")
+        count_runs(bq, cfg["table"])
         if missing_with_email:
             first = missing_with_email[0]
             print(f"  download test, email from {first}: {try_link(gmail, emails[first][0]['id'])}")
+        probe = date(2026, 5, 15)
+        if probe in emails:
+            print(f"  download test, email from {probe}: {try_link(gmail, emails[probe][0]['id'])}")
         print()
 
     check_dailys_tab(all_days)
