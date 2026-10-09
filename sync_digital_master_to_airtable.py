@@ -152,6 +152,9 @@ def map_row(row: dict[str, Any]) -> dict[str, Any]:
         Digital_master's original 16 fields -- add an "engagements"
         (Number) field in Airtable for this to actually populate;
         until then it's silently dropped like any other unknown field
+      - video_views: video_views, passed through as-is (social-only).
+        Not one of Digital_master's original 16 fields -- add a
+        "video_views" (Number) field in Airtable for this to populate
       - amount_raised: revenue
       - avg_contribution: computed here (revenue / contributions) since
         cross_channel_all_items has no equivalent column
@@ -183,6 +186,7 @@ def map_row(row: dict[str, Any]) -> dict[str, Any]:
         "engagement_rate_pct": row.get("engagement_rate"),
         "action_takers": row.get("clicks"),
         "engagements": row.get("engagement"),
+        "video_views": row.get("video_views"),
         "contributions": contributions,
         "amount_raised": revenue,
         "year": row.get("year"),
